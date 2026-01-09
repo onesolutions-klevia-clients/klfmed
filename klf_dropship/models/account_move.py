@@ -1,4 +1,8 @@
+import logging
+
 from odoo import models, api
+
+_logger = logging.getLogger(__name__)
 
 
 class AccountMove(models.Model):
@@ -9,6 +13,8 @@ class AccountMove(models.Model):
         """Auto-populate logistics fields from related stock picking."""
         moves = super().create(vals_list)
         for move in moves:
+            _logger.warning("KLF_DROPSHIP: AccountMove created: %s (id=%s) type=%s",
+                         move.name, move.id, move.move_type)
             move._populate_from_picking()
         return moves
 
@@ -33,8 +39,11 @@ class AccountMove(models.Model):
                 if line.purchase_line_id:
                     pickings |= line.purchase_line_id.move_ids.mapped('picking_id')
 
+            _logger.warning("KLF_DROPSHIP: AccountMove %s has %d related pickings", move.name, len(pickings))
+
             # Get the first picking with data to populate fields
             for picking in pickings:
+                _logger.warning("KLF_DROPSHIP: Processing picking %s for AccountMove %s", picking.name, move.name)
                 if picking.x_studio_port_of_destination and not move.x_studio_port_of_destination:
                     move.x_studio_port_of_destination = picking.x_studio_port_of_destination
                 if picking.x_studio_port_of_loading and not move.x_studio_port_of_loading:
@@ -54,6 +63,8 @@ class AccountMoveLine(models.Model):
         """Auto-populate x_studio_po_no from the related purchase order origin."""
         lines = super().create(vals_list)
         for line in lines:
+            _logger.warning("KLF_DROPSHIP: AccountMoveLine created: id=%s product=%s",
+                         line.id, line.product_id.name if line.product_id else 'N/A')
             line._populate_po_no()
         return lines
 
@@ -68,6 +79,8 @@ class AccountMoveLine(models.Model):
         from that pricelist instead of using the standard product price.
         """
         for line in self:
+            _logger.warning("KLF_DROPSHIP: onchange product_id called for line, product=%s",
+                         line.product_id.name if line.product_id else 'N/A')
             # Only apply on customer invoices/refunds
             if not line.product_id or not line.move_id:
                 continue
@@ -82,6 +95,8 @@ class AccountMoveLine(models.Model):
             # Get customer's pricelist TODO: To be verified (Customer or SO)
             pricelist = partner.property_product_pricelist
             if pricelist:
+                _logger.warning("KLF_DROPSHIP: Applying pricelist %s to product %s",
+                             pricelist.name, line.product_id.name)
                 # Calculate price from pricelist
                 price = pricelist._get_product_price(
                     line.product_id,
@@ -89,6 +104,7 @@ class AccountMoveLine(models.Model):
                     uom=line.product_uom_id
                 )
                 # Apply the calculated price
+                _logger.warning("KLF_DROPSHIP: Setting price_unit = %s", price)
                 line.price_unit = price
 
     def _populate_po_no(self):
@@ -98,10 +114,13 @@ class AccountMoveLine(models.Model):
         """
         for line in self:
             if line.x_studio_po_no:
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s already has x_studio_po_no", line.id)
                 continue
 
             # Try from sale line
             if line.sale_line_ids:
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no from sale_line_ids",
+                             line.id)
                 line.x_studio_po_no = line.sale_line_ids[0].order_id.id
                 continue
 
@@ -111,4 +130,7 @@ class AccountMoveLine(models.Model):
                     ('name', '=', line.purchase_line_id.order_id.origin)
                 ], limit=1)
                 if sale_order:
+                    _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no = %s from PO origin",
+                                 line.id, sale_order.id)
                     line.x_studio_po_no = sale_order.id
+
