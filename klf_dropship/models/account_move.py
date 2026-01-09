@@ -79,7 +79,7 @@ class AccountMoveLine(models.Model):
             if not partner:
                 continue
 
-            # Get customer's pricelist
+            # Get customer's pricelist TODO: To be verified (Customer or SO)
             pricelist = partner.property_product_pricelist
             if pricelist:
                 # Calculate price from pricelist
