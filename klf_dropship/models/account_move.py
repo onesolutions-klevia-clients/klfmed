@@ -57,6 +57,40 @@ class AccountMoveLine(models.Model):
             line._populate_po_no()
         return lines
 
+    @api.onchange('product_id')
+    def _onchange_product_id_apply_pricelist(self):
+        """
+        Apply customer's pricelist on invoice lines.
+        This replicates SO behavior on invoices as requested by the client.
+        
+        When a product is selected on an invoice line, if the customer has
+        a pricelist defined, the unit price is automatically calculated
+        from that pricelist instead of using the standard product price.
+        """
+        for line in self:
+            # Only apply on customer invoices/refunds
+            if not line.product_id or not line.move_id:
+                continue
+            if line.move_id.move_type not in ('out_invoice', 'out_refund'):
+                continue
+
+            # Get the customer from the invoice
+            partner = line.move_id.partner_id
+            if not partner:
+                continue
+
+            # Get customer's pricelist
+            pricelist = partner.property_product_pricelist
+            if pricelist:
+                # Calculate price from pricelist
+                price = pricelist._get_product_price(
+                    line.product_id,
+                    line.quantity or 1.0,
+                    uom=line.product_uom_id
+                )
+                # Apply the calculated price
+                line.price_unit = price
+
     def _populate_po_no(self):
         """
         Populate x_studio_po_no from related sale or purchase order.
