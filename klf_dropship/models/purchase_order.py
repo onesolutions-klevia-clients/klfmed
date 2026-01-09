@@ -22,7 +22,7 @@ class PurchaseOrder(models.Model):
                     # Also update PO lines with the SO reference
                     for line in order.order_line:
                         if not line.x_studio_po_no:
-                            line.x_studio_po_no = sale_order.name
+                            line.x_studio_po_no = sale_order.id
         return orders
 
 
@@ -43,5 +43,5 @@ class PurchaseOrderLine(models.Model):
                     ('name', '=', line.order_id.origin)
                 ], limit=1)
                 if sale_order:
-                    line.x_studio_po_no = sale_order.name
+                    line.x_studio_po_no = sale_order.id
         return lines
