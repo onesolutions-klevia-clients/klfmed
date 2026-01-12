@@ -16,7 +16,7 @@ Automations:
 ------------
 * Sale Order: Auto-links x_studio_supplier_po at confirmation
 * Purchase Order Line: Auto-populates x_studio_po_no from SO origin
-* Stock Move: Auto-populates x_studio_po_no_ref from PO origin
+* Stock Move: Auto-populates x_studio_po_no from PO origin
 * Account Move: Auto-populates logistics fields from related pickings
 * Account Move Line: Auto-populates x_studio_po_no_ref from related SO/PO
     """,

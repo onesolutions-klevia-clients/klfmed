@@ -11,7 +11,7 @@ class StockMove(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """
-        Auto-populate x_studio_po_no_ref from the related purchase order.
+        Auto-populate x_studio_po_no from the related purchase order.
         Links the stock move back to the original Sales Order.
         """
         moves = super().create(vals_list)
@@ -27,8 +27,8 @@ class StockMove(models.Model):
                         ('name', '=', po.origin)
                     ], limit=1)
                     if sale_order:
-                        _logger.warning("KLF_DROPSHIP: Setting x_studio_po_no_ref = %s on StockMove %s",
-                                     sale_order.name, move.id)
-                        move.x_studio_po_no_ref = sale_order.name
+                        _logger.warning("KLF_DROPSHIP: Setting x_studio_po_no = %s on StockMove %s",
+                                     sale_order.id, move.id)
+                        move.x_studio_po_no = sale_order.id
         return moves
 
