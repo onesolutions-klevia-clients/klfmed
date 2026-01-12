@@ -60,7 +60,7 @@ class AccountMoveLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Auto-populate x_studio_po_no from the related purchase order origin."""
+        """Auto-populate x_studio_po_no_ref from the related purchase order origin."""
         lines = super().create(vals_list)
         for line in lines:
             _logger.warning("KLF_DROPSHIP: AccountMoveLine created: id=%s product=%s",
@@ -109,19 +109,19 @@ class AccountMoveLine(models.Model):
 
     def _populate_po_no(self):
         """
-        Populate x_studio_po_no from related sale or purchase order.
+        Populate x_studio_po_no_ref from related sale or purchase order.
         Links the invoice line back to the original Sales Order.
         """
         for line in self:
-            if line.x_studio_po_no:
-                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s already has x_studio_po_no", line.id)
+            if line.x_studio_po_no_ref:
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s already has x_studio_po_no_ref", line.id)
                 continue
 
             # Try from sale line
             if line.sale_line_ids:
-                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no from sale_line_ids",
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no_ref from sale_line_ids",
                              line.id)
-                line.x_studio_po_no = line.sale_line_ids[0].order_id.id
+                line.x_studio_po_no_ref = line.sale_line_ids[0].order_id.name
                 continue
 
             # Try from purchase line
@@ -130,7 +130,7 @@ class AccountMoveLine(models.Model):
                     ('name', '=', line.purchase_line_id.order_id.origin)
                 ], limit=1)
                 if sale_order:
-                    _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no = %s from PO origin",
-                                 line.id, sale_order.id)
-                    line.x_studio_po_no = sale_order.id
+                    _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no_ref = %s from PO origin",
+                                 line.id, sale_order.name)
+                    line.x_studio_po_no_ref = sale_order.name
 
