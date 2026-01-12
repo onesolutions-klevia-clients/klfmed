@@ -44,11 +44,17 @@ class AccountMove(models.Model):
             # Get the first picking with data to populate fields
             for picking in pickings:
                 _logger.warning("KLF_DROPSHIP: Processing picking %s for AccountMove %s", picking.name, move.name)
+                _logger.warning("KLF_DROPSHIP: Check Dest: %s vs %s", picking.x_studio_port_of_destination, move.x_studio_port_of_destination)
+                _logger.warning("KLF_DROPSHIP: Check Loading %s vs %s", picking.x_studio_port_of_loading, move.x_studio_port_of_loading)
+                _logger.warning("KLF_DROPSHIP: Check InvNumber %s vs %s", picking.x_studio_invoice_number, move.x_studio_invoice_number)
                 if picking.x_studio_port_of_destination and not move.x_studio_port_of_destination:
+                    _logger.warning("KLF_DROPSHIP: Move Dest to %s", picking.x_studio_port_of_destination)
                     move.x_studio_port_of_destination = picking.x_studio_port_of_destination
                 if picking.x_studio_port_of_loading and not move.x_studio_port_of_loading:
+                    _logger.warning("KLF_DROPSHIP: Move Loading to %s", picking.x_studio_port_of_loading)
                     move.x_studio_port_of_loading = picking.x_studio_port_of_loading
                 if picking.x_studio_invoice_number and not move.x_studio_invoice_number:
+                    _logger.warning("KLF_DROPSHIP: Move InvNumber to %s", picking.x_studio_invoice_number)
                     move.x_studio_invoice_number = picking.x_studio_invoice_number
                 # Destination country from partner if available
                 if picking.partner_id and picking.partner_id.country_id and not move.x_studio_destination_country:
