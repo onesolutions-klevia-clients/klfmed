@@ -74,44 +74,137 @@ class AccountMoveLine(models.Model):
             line._populate_po_no()
         return lines
 
+    def _should_apply_pricelist(self):
+        """
+        Check if pricelist should be applied to this invoice line.
+        
+        Returns False if:
+        - Not a customer invoice/refund
+        - Invoice is posted
+        - Invoice was generated from a Sales Order
+        - Price was manually edited by user
+        """
+        self.ensure_one()
+        
+        if not self.product_id or not self.move_id:
+            return False
+        
+        # Only on customer invoices/refunds
+        if self.move_id.move_type not in ('out_invoice', 'out_refund'):
+            return False
+        
+        # Never on posted invoices
+        if self.move_id.state == 'posted':
+            _logger.warning("KLF_DROPSHIP: Skipping pricelist - invoice is posted")
+            return False
+        
+        # Never on invoices generated from Sales Orders
+        if self.move_id.invoice_origin:
+            # Check if origin matches a Sales Order
+            sale_order = self.env['sale.order'].search([
+                ('name', '=', self.move_id.invoice_origin)
+            ], limit=1)
+            if sale_order:
+                _logger.warning("KLF_DROPSHIP: Skipping pricelist - invoice generated from SO %s",
+                             sale_order.name)
+                return False
+        
+        # Also check if line is linked to a sale line (another way to detect SO-generated invoices)
+        if self.sale_line_ids:
+            _logger.warning("KLF_DROPSHIP: Skipping pricelist - line linked to SO lines")
+            return False
+        
+        # Skip if price was manually edited
+        if hasattr(self, 'x_studio_price_manually_set') and self.x_studio_price_manually_set:
+            _logger.warning("KLF_DROPSHIP: Skipping pricelist - price manually edited")
+            return False
+        
+        return True
+
+    def _apply_pricelist_price(self):
+        """
+        Apply customer's pricelist to calculate and set the unit price.
+        Uses the same logic as Sales Orders.
+        
+        Fallback: If no pricelist or no matching rule, uses product's standard sales price.
+        """
+        for line in self:
+            if not line._should_apply_pricelist():
+                continue
+            
+            partner = line.move_id.partner_id
+            if not partner:
+                continue
+            
+            # Get customer's pricelist
+            pricelist = partner.property_product_pricelist
+            
+            if pricelist:
+                _logger.warning("KLF_DROPSHIP: Applying pricelist %s to product %s (qty=%s)",
+                             pricelist.name, line.product_id.name, line.quantity)
+                # Calculate price from pricelist using SO-identical logic
+                price = pricelist._get_product_price(
+                    line.product_id,
+                    line.quantity or 1.0,
+                    uom=line.product_uom_id,
+                    date=line.move_id.invoice_date or line.move_id.date,
+                )
+                _logger.warning("KLF_DROPSHIP: Pricelist returned price = %s", price)
+            else:
+                # Fallback: use product's standard sales price
+                _logger.warning("KLF_DROPSHIP: No pricelist found, using standard sales price")
+                price = line.product_id.lst_price
+            
+            # Apply the calculated price
+            _logger.warning("KLF_DROPSHIP: Setting price_unit = %s", price)
+            line.price_unit = price
+
     @api.onchange('product_id')
     def _onchange_product_id_apply_pricelist(self):
         """
-        Apply customer's pricelist on invoice lines.
-        This replicates SO behavior on invoices as requested by the client.
-        
-        When a product is selected on an invoice line, if the customer has
-        a pricelist defined, the unit price is automatically calculated
-        from that pricelist instead of using the standard product price.
+        Apply customer's pricelist when product is changed.
+        Resets the manual edit flag when product changes.
         """
         for line in self:
             _logger.warning("KLF_DROPSHIP: onchange product_id called for line, product=%s",
                          line.product_id.name if line.product_id else 'N/A')
-            # Only apply on customer invoices/refunds
-            if not line.product_id or not line.move_id:
-                continue
-            if line.move_id.move_type not in ('out_invoice', 'out_refund'):
-                continue
+            # Reset manual edit flag when product changes
+            if hasattr(line, 'x_studio_price_manually_set'):
+                line.x_studio_price_manually_set = False
+        
+        self._apply_pricelist_price()
 
-            # Get the customer from the invoice
-            partner = line.move_id.partner_id
-            if not partner:
-                continue
+    @api.onchange('quantity')
+    def _onchange_quantity_apply_pricelist(self):
+        """
+        Recalculate price when quantity changes.
+        This is required because pricelist rules can be quantity-dependent.
+        """
+        for line in self:
+            _logger.warning("KLF_DROPSHIP: onchange quantity called for line, product=%s, qty=%s",
+                         line.product_id.name if line.product_id else 'N/A', line.quantity)
+        
+        self._apply_pricelist_price()
 
-            # Get customer's pricelist TODO: To be verified (Customer or SO)
-            pricelist = partner.property_product_pricelist
-            if pricelist:
-                _logger.warning("KLF_DROPSHIP: Applying pricelist %s to product %s",
-                             pricelist.name, line.product_id.name)
-                # Calculate price from pricelist
-                price = pricelist._get_product_price(
-                    line.product_id,
-                    line.quantity or 1.0,
-                    uom=line.product_uom_id
-                )
-                # Apply the calculated price
-                _logger.warning("KLF_DROPSHIP: Setting price_unit = %s", price)
-                line.price_unit = price
+    @api.onchange('price_unit')
+    def _onchange_price_unit_mark_manual(self):
+        """
+        Mark the line as manually edited if user changes the price.
+        This prevents automatic recalculation on subsequent changes.
+        
+        Note: This requires the x_studio_price_manually_set field to be created
+        via Odoo Studio on account.move.line model (Boolean, default False).
+        """
+        # Only mark as manual if this is a real user edit (not from pricelist calculation)
+        # We detect this by checking if we're in a UI context
+        if self.env.context.get('from_pricelist_calculation'):
+            return
+        
+        for line in self:
+            if hasattr(line, 'x_studio_price_manually_set') and line.product_id:
+                _logger.warning("KLF_DROPSHIP: price_unit manually edited for product %s",
+                             line.product_id.name)
+                line.x_studio_price_manually_set = True
 
     def _populate_po_no(self):
         """
