@@ -74,11 +74,11 @@
                         <table class="table table-sm" style="font-size: 9pt;">
                             <tr t-if="o.x_studio_port_of_loading">
                                 <td style="width: 40%; font-weight: bold;">Port of Loading</td>
-                                <td t-field="o.x_studio_port_of_loading"/>
+                                <td><span t-field="o.x_studio_port_of_loading"/></td>
                             </tr>
                             <tr t-if="o.x_studio_port_of_destination">
                                 <td style="font-weight: bold;">Port of Destination</td>
-                                <td t-field="o.x_studio_port_of_destination"/>
+                                <td><span t-field="o.x_studio_port_of_destination"/></td>
                             </tr>
                             <tr t-if="o.invoice_incoterm_id">
                                 <td style="font-weight: bold;">Incoterms</td>
@@ -87,7 +87,7 @@
                             <!-- TODO: Uncomment when x_studio_bl_no is created in Studio
                             <tr t-if="o.x_studio_bl_no">
                                 <td style="font-weight: bold;">BL No.</td>
-                                <td t-field="o.x_studio_bl_no"/>
+                                <td><span t-field="o.x_studio_bl_no"/></td>
                             </tr>
                             -->
                             <tr>
@@ -102,16 +102,16 @@
                         <table class="table table-sm" style="font-size: 9pt;">
                             <tr>
                                 <td style="width: 40%; font-weight: bold;">Invoice number</td>
-                                <td t-field="o.name"/>
+                                <td><span t-field="o.name"/></td>
                             </tr>
                             <tr>
                                 <td style="font-weight: bold;">Invoice date</td>
-                                <td t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
+                                <td><span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/></td>
                             </tr>
                             <!-- TODO: Uncomment when x_studio_yr_order_no is created in Studio
                             <tr t-if="o.x_studio_yr_order_no">
                                 <td style="font-weight: bold;">Yr/order no.</td>
-                                <td t-field="o.x_studio_yr_order_no"/>
+                                <td><span t-field="o.x_studio_yr_order_no"/></td>
                             </tr>
                             -->
                             <tr>
@@ -213,7 +213,7 @@
                         <table class="table table-sm table-borderless" style="font-size: 9pt;">
                             <tr>
                                 <td style="width: 15%; font-weight: bold;">Beneficiary</td>
-                                <td t-field="o.company_id.name"/>
+                                <td><span t-field="o.company_id.name"/></td>
                             </tr>
                             <t t-if="o.partner_bank_id">
                                 <tr>
@@ -222,7 +222,7 @@
                                 </tr>
                                 <tr t-if="o.partner_bank_id.acc_number">
                                     <td style="font-weight: bold;">IBAN</td>
-                                    <td t-field="o.partner_bank_id.acc_number"/>
+                                    <td><span t-field="o.partner_bank_id.acc_number"/></td>
                                 </tr>
                                 <tr t-if="o.partner_bank_id.bank_id">
                                     <td style="font-weight: bold;">Bank</td>
@@ -238,7 +238,7 @@
                                 </tr>
                                 <tr t-if="o.partner_bank_id.bank_id.bic">
                                     <td style="font-weight: bold;">BIC / Swift</td>
-                                    <td t-field="o.partner_bank_id.bank_id.bic"/>
+                                    <td><span t-field="o.partner_bank_id.bank_id.bic"/></td>
                                 </tr>
                             </t>
                         </table>
