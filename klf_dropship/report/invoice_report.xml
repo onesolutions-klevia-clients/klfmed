@@ -1,32 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- KLFMed Custom Invoice Report Definition -->
-    <record id="action_report_klfmed_invoice" model="ir.actions.report">
-        <field name="name">KLFMed Commercial Invoice</field>
-        <field name="model">account.move</field>
-        <field name="report_type">qweb-pdf</field>
-        <field name="report_name">klf_dropship.report_invoice_klfmed</field>
-        <field name="report_file">klf_dropship.report_invoice_klfmed</field>
-        <field name="print_report_name">'Commercial Invoice - %s' % object.name</field>
-        <field name="binding_model_id" ref="account.model_account_move"/>
-        <field name="binding_type">report</field>
-    </record>
 
-    <!-- Main Invoice Template -->
-    <template id="report_invoice_klfmed">
-        <t t-call="web.html_container">
-            <t t-foreach="docs" t-as="o">
-                <t t-call="klf_dropship.report_invoice_klfmed_document" t-lang="o.partner_id.lang"/>
-            </t>
-        </t>
-    </template>
-
-    <!-- Invoice Document Template -->
-    <template id="report_invoice_klfmed_document">
-        <t t-call="web.external_layout">
-            <t t-set="o" t-value="o"/>
-            <t t-set="company" t-value="o.company_id"/>
-
+    <!-- Override the default invoice document template -->
+    <template id="report_invoice_document_inherit_klfmed" inherit_id="account.report_invoice_document" priority="99">
+        <xpath expr="//div[@class='page']" position="replace">
             <div class="page" style="font-family: Arial, sans-serif; font-size: 10pt;">
 
                 <!-- Header Section -->
@@ -34,16 +11,16 @@
                     <!-- Company Info (Left) -->
                     <div class="col-6">
                         <div style="margin-bottom: 10px;">
-                            <img t-if="company.logo" t-att-src="image_data_uri(company.logo)"
+                            <img t-if="o.company_id.logo" t-att-src="image_data_uri(o.company_id.logo)"
                                  style="max-height: 80px;" alt="Company Logo"/>
                         </div>
                         <div style="font-size: 9pt; line-height: 1.4;">
-                            <strong t-field="company.name"/><br/>
-                            <span t-field="company.street"/><br/>
-                            <span t-field="company.zip"/> <span t-field="company.city"/> - <span t-field="company.country_id.name"/><br/>
+                            <strong t-field="o.company_id.name"/><br/>
+                            <span t-field="o.company_id.street"/><br/>
+                            <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/> - <span t-field="o.company_id.country_id.name"/><br/>
                             <br/>
-                            <span t-if="company.phone">Tel. <span t-field="company.phone"/><br/></span>
-                            <span t-if="company.company_registry">Registration number: <span t-field="company.company_registry"/></span>
+                            <span t-if="o.company_id.phone">Tel. <span t-field="o.company_id.phone"/><br/></span>
+                            <span t-if="o.company_id.company_registry">Registration number: <span t-field="o.company_id.company_registry"/></span>
                         </div>
                     </div>
 
@@ -218,7 +195,7 @@
                         <table class="table table-sm table-borderless" style="font-size: 9pt;">
                             <tr>
                                 <td style="width: 15%; font-weight: bold;">Beneficiary</td>
-                                <td t-field="company.name"/>
+                                <td t-field="o.company_id.name"/>
                             </tr>
                             <t t-if="o.partner_bank_id">
                                 <tr>
@@ -251,7 +228,7 @@
                 </div>
 
             </div>
-        </t>
+        </xpath>
     </template>
 
 </odoo>
