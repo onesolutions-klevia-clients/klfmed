@@ -19,6 +19,11 @@ Automations:
 * Stock Move: Auto-populates x_studio_po_no from PO origin
 * Account Move: Auto-populates logistics fields from related pickings
 * Account Move Line: Auto-populates x_studio_po_no_ref from related SO/PO
+
+Reports:
+--------
+* KLFMed Commercial Invoice: Custom invoice PDF with shipment details,
+  lot numbers, expiration dates, and banking information
     """,
     'author': 'One Solutions',
     'website': 'https://onesolutions.io',
@@ -29,7 +34,9 @@ Automations:
         'stock',
         'account',
     ],
-    'data': [],
+    'data': [
+        'report/invoice_report.xml',
+    ],
     'installable': True,
     'application': False,
     'auto_install': True,
