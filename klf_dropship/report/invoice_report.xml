@@ -1,9 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Override the default invoice document template -->
-    <template id="report_invoice_document_inherit_klfmed" inherit_id="account.report_invoice_document" priority="99">
-        <xpath expr="//div[@class='page']" position="replace">
+    <!-- KLFMed Custom Invoice Report Definition -->
+    <record id="action_report_klfmed_invoice" model="ir.actions.report">
+        <field name="name">KLFMed Commercial Invoice</field>
+        <field name="model">account.move</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">klf_dropship.report_invoice_klfmed</field>
+        <field name="report_file">klf_dropship.report_invoice_klfmed</field>
+        <field name="print_report_name">'Commercial Invoice - %s' % object.name</field>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- Main Invoice Template -->
+    <template id="report_invoice_klfmed">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="klf_dropship.report_invoice_klfmed_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- Invoice Document Template -->
+    <template id="report_invoice_klfmed_document">
+        <t t-call="web.external_layout">
             <div class="page" style="font-family: Arial, sans-serif; font-size: 10pt;">
 
                 <!-- Header Section -->
@@ -132,8 +153,8 @@
                             <th style="width: 10%;">Expiration Date</th>
                             <th style="width: 8%; text-align: right;">Quantity</th>
                             <th style="width: 12%;">PO no.</th>
-                            <th style="width: 12%; text-align: right;">Unit Price <span t-field="o.currency_id.name"/></th>
-                            <th style="width: 12%; text-align: right;">Amount <span t-field="o.currency_id.name"/></th>
+                            <th style="width: 12%; text-align: right;">Unit Price <span t-esc="o.currency_id.name"/></th>
+                            <th style="width: 12%; text-align: right;">Amount <span t-esc="o.currency_id.name"/></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -218,7 +239,7 @@
                             <t t-if="o.partner_bank_id">
                                 <tr>
                                     <td style="font-weight: bold;">Bank account</td>
-                                    <td><span t-field="o.currency_id.name"/> Bank Account</td>
+                                    <td><span t-esc="o.currency_id.name"/> Bank Account</td>
                                 </tr>
                                 <tr t-if="o.partner_bank_id.acc_number">
                                     <td style="font-weight: bold;">IBAN</td>
@@ -246,7 +267,7 @@
                 </div>
 
             </div>
-        </xpath>
+        </t>
     </template>
 
 </odoo>
