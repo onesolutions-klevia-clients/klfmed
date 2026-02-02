@@ -27,24 +27,12 @@
     <template id="report_invoice_klfmed_document">
         <t t-call="web.basic_layout">
             <style>
-                @page {
-                    margin: 0;
-                }
-                .page-wrapper {
-                    width: 100%;
-                    min-height: 100vh;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    padding: 0;
-                }
                 .klfmed-invoice {
                     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
                     font-size: 10pt;
                     color: #333;
                     padding: 20px 40px;
                     max-width: 800px;
-                    width: 100%;
                     margin: 0 auto;
                 }
                 .klfmed-invoice .header-section {
@@ -170,7 +158,6 @@
                 }
             </style>
 
-            <div class="page-wrapper">
             <div class="klfmed-invoice">
                 <!-- Header Section -->
                 <div class="header-section">
@@ -211,7 +198,7 @@
                 </div>
 
                 <!-- Document Title -->
-                <div class="document-title">COMMERCIAL INVOICE - TEST 2</div>
+                <div class="document-title">COMMERCIAL INVOICE - TEST 3</div>
 
                 <!-- Ship-To Section -->
                 <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
@@ -292,7 +279,7 @@
                     </thead>
                     <tbody>
                         <t t-foreach="o.invoice_line_ids" t-as="line">
-                            <tr t-if="not line.display_type">
+                            <tr t-if="line.display_type == False">
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td><span t-field="line.name"/></td>
                                 <!-- TODO: x_studio_lot_number -->
@@ -323,7 +310,7 @@
                             <td class="text-right">
                                 <t t-set="total_qty" t-value="0"/>
                                 <t t-foreach="o.invoice_line_ids" t-as="qty_line">
-                                    <t t-if="not qty_line.display_type">
+                                    <t t-if="qty_line.display_type == False">
                                         <t t-set="total_qty" t-value="total_qty + qty_line.quantity"/>
                                     </t>
                                 </t>
@@ -377,7 +364,6 @@
                     </table>
                 </div>
 
-            </div>
             </div>
         </t>
     </template>
