@@ -27,11 +27,25 @@
     <template id="report_invoice_klfmed_document">
         <t t-call="web.basic_layout">
             <style>
+                @page {
+                    margin: 0;
+                }
+                .page-wrapper {
+                    width: 100%;
+                    min-height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: 0;
+                }
                 .klfmed-invoice {
                     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
                     font-size: 10pt;
                     color: #333;
                     padding: 20px 40px;
+                    max-width: 800px;
+                    width: 100%;
+                    margin: 0 auto;
                 }
                 .klfmed-invoice .header-section {
                     margin-bottom: 30px;
@@ -156,6 +170,7 @@
                 }
             </style>
 
+            <div class="page-wrapper">
             <div class="klfmed-invoice">
                 <!-- Header Section -->
                 <div class="header-section">
@@ -362,6 +377,7 @@
                     </table>
                 </div>
 
+            </div>
             </div>
         </t>
     </template>
