@@ -276,8 +276,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-foreach="o.invoice_line_ids.filtered(lambda l: not l.display_type)" t-as="line">
-                            <tr>
+                        <t t-foreach="o.invoice_line_ids" t-as="line">
+                            <tr t-if="not line.display_type">
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td><span t-field="line.name"/></td>
                                 <!-- TODO: x_studio_lot_number -->
@@ -306,7 +306,12 @@
                         <tr>
                             <td style="font-weight: bold;">Total quantity</td>
                             <td class="text-right">
-                                <t t-set="total_qty" t-value="sum(line.quantity for line in o.invoice_line_ids.filtered(lambda l: not l.display_type))"/>
+                                <t t-set="total_qty" t-value="0"/>
+                                <t t-foreach="o.invoice_line_ids" t-as="qty_line">
+                                    <t t-if="not qty_line.display_type">
+                                        <t t-set="total_qty" t-value="total_qty + qty_line.quantity"/>
+                                    </t>
+                                </t>
                                 <span t-esc="'{:,.0f}'.format(total_qty)"/>
                             </td>
                         </tr>
