@@ -8,7 +8,7 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">klf_dropship.report_invoice_klfmed</field>
         <field name="report_file">klf_dropship.report_invoice_klfmed</field>
-        <field name="print_report_name">'Commercial Invoice - %s' % object.name</field>
+        <field name="print_report_name">'Commercial Invoice - %s' % (object.name if object.name and object.name != '/' else 'Draft')</field>
         <field name="binding_model_id" ref="account.model_account_move"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="base.paperformat_euro"/>
@@ -27,6 +27,16 @@
     <template id="report_invoice_klfmed_document">
         <t t-call="web.basic_layout">
             <style>
+                html, body {
+                    height: 100%;
+                    margin: 0;
+                    padding: 0;
+                }
+                .page {
+                    min-height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                }
                 .klfmed-invoice {
                     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
                     font-size: 10pt;
@@ -34,6 +44,16 @@
                     padding: 20px 40px;
                     max-width: 800px;
                     margin: 0 auto;
+                    flex: 1;
+                }
+                .klfmed-footer {
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    font-size: 8pt;
+                    color: #666;
+                    text-align: center;
+                    padding: 15px 40px;
+                    border-top: 1px solid #ddd;
+                    margin-top: auto;
                 }
                 .klfmed-invoice .header-section {
                     margin-bottom: 30px;
@@ -158,6 +178,7 @@
                 }
             </style>
 
+            <div class="page">
             <div class="klfmed-invoice">
                 <!-- Header Section -->
                 <div class="header-section">
@@ -198,7 +219,7 @@
                 </div>
 
                 <!-- Document Title -->
-                <div class="document-title">COMMERCIAL INVOICE - TEST 3</div>
+                <div class="document-title">COMMERCIAL INVOICE - TEST 5</div>
 
                 <!-- Ship-To Section -->
                 <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
@@ -279,7 +300,7 @@
                     </thead>
                     <tbody>
                         <t t-foreach="o.invoice_line_ids" t-as="line">
-                            <tr t-if="line.display_type == False">
+                            <tr>
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td><span t-field="line.name"/></td>
                                 <!-- TODO: x_studio_lot_number -->
@@ -310,9 +331,7 @@
                             <td class="text-right">
                                 <t t-set="total_qty" t-value="0"/>
                                 <t t-foreach="o.invoice_line_ids" t-as="qty_line">
-                                    <t t-if="qty_line.display_type == False">
-                                        <t t-set="total_qty" t-value="total_qty + qty_line.quantity"/>
-                                    </t>
+                                    <t t-set="total_qty" t-value="total_qty + qty_line.quantity"/>
                                 </t>
                                 <span t-esc="'{:,.0f}'.format(total_qty)"/>
                             </td>
@@ -364,6 +383,16 @@
                     </table>
                 </div>
 
+            </div>
+
+            <!-- Footer -->
+            <div class="klfmed-footer">
+                <span t-field="o.company_id.name"/> -
+                <span t-field="o.company_id.street"/>,
+                <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/>,
+                <span t-field="o.company_id.country_id.name"/>
+                <t t-if="o.company_id.phone"> | Tel: <span t-field="o.company_id.phone"/></t>
+            </div>
             </div>
         </t>
     </template>
