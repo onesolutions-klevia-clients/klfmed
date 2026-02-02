@@ -211,7 +211,7 @@
                 </div>
 
                 <!-- Document Title -->
-                <div class="document-title">COMMERCIAL INVOICE</div>
+                <div class="document-title">COMMERCIAL INVOICE - TEST 2</div>
 
                 <!-- Ship-To Section -->
                 <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
