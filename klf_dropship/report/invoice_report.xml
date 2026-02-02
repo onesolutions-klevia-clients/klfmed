@@ -234,7 +234,7 @@
                 </div>
 
                 <!-- Document Title -->
-                <div class="document-title">COMMERCIAL INVOICE - TEST 5</div>
+                <div class="document-title">COMMERCIAL INVOICE</div>
 
                 <!-- Ship-To Section -->
                 <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
@@ -271,10 +271,9 @@
                                     <td class="label">Incoterms</td>
                                     <td><span t-field="o.invoice_incoterm_id.code"/> <span t-field="o.invoice_incoterm_id.name"/></td>
                                 </tr>
-                                <!-- TODO: Uncomment when x_studio_bl_no is created in Studio -->
-                                <tr>
+                                <tr t-if="o.x_studio_bl_no">
                                     <td class="label">BL No.</td>
-                                    <td>TEST</td>
+                                    <td><span t-field="o.x_studio_bl_no"/></td>
                                 </tr>
                             </table>
                         </td>
@@ -283,16 +282,18 @@
                             <table class="info-table">
                                 <tr>
                                     <td class="label">Invoice number</td>
-                                    <td><span t-field="o.name"/></td>
+                                    <td>
+                                        <span t-if="o.name and o.name != '/'" t-field="o.name"/>
+                                        <span t-else="">Draft</span>
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td class="label">Invoice date</td>
                                     <td><span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/></td>
                                 </tr>
-                                <!-- TODO: Uncomment when x_studio_yr_order_no is created in Studio -->
-                                <tr>
+                                <tr t-if="o.x_studio_yr_order_no">
                                     <td class="label">Yr/order no.</td>
-                                    <td>TEST</td>
+                                    <td><span t-field="o.x_studio_yr_order_no"/></td>
                                 </tr>
                             </table>
                         </td>
@@ -318,10 +319,8 @@
                             <tr>
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td><span t-field="line.name"/></td>
-                                <!-- TODO: x_studio_lot_number -->
-                                <td>TEST</td>
-                                <!-- TODO: x_studio_expiration_date -->
-                                <td>TEST</td>
+                                <td><span t-if="line.x_studio_lot_number" t-field="line.x_studio_lot_number"/></td>
+                                <td><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
                                 <td class="text-right">
                                     <span t-field="line.quantity"/>
                                     <span t-if="line.product_uom_id" style="font-size: 7pt;" t-field="line.product_uom_id.name"/>
