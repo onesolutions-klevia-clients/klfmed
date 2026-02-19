@@ -42,6 +42,9 @@
     <template id="report_invoice_klfmed_document">
         <t t-call="web.basic_layout">
             <style>
+                table, td, th {
+                    border: none;
+                }
                 html, body {
                     height: 100%;
                     margin: 0;
