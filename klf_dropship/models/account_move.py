@@ -72,6 +72,7 @@ class AccountMoveLine(models.Model):
             _logger.warning("KLF_DROPSHIP: AccountMoveLine created: id=%s product=%s",
                          line.id, line.product_id.name if line.product_id else 'N/A')
             line._populate_po_no()
+            line._populate_lot_number()
         return lines
 
     def _should_apply_pricelist(self):
@@ -205,6 +206,37 @@ class AccountMoveLine(models.Model):
                 _logger.warning("KLF_DROPSHIP: price_unit manually edited for product %s",
                              line.product_id.name)
                 line.x_studio_price_manually_set = True
+
+    def _populate_lot_number(self):
+        """
+        Populate x_studio_lot_number from related stock move lines (lot/serial numbers).
+        Traverses: invoice line → sale/purchase line → stock.move → stock.move.line → lot_id
+        """
+        for line in self:
+            if line.x_studio_lot_number:
+                continue
+
+            lot_names = []
+
+            # From sale lines
+            if line.sale_line_ids:
+                for sale_line in line.sale_line_ids:
+                    for move in sale_line.move_ids:
+                        for move_line in move.move_line_ids:
+                            if move_line.lot_id and move_line.lot_id.name not in lot_names:
+                                lot_names.append(move_line.lot_id.name)
+
+            # From purchase line
+            elif line.purchase_line_id:
+                for move in line.purchase_line_id.move_ids:
+                    for move_line in move.move_line_ids:
+                        if move_line.lot_id and move_line.lot_id.name not in lot_names:
+                            lot_names.append(move_line.lot_id.name)
+
+            if lot_names:
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_lot_number = %s",
+                             line.id, ', '.join(lot_names))
+                line.x_studio_lot_number = ', '.join(lot_names)
 
     def _populate_po_no(self):
         """
