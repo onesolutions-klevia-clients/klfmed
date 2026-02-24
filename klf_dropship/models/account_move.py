@@ -20,43 +20,54 @@ class AccountMove(models.Model):
 
     def _populate_from_picking(self):
         """
-        Populate logistics fields from related stock picking (Transfer).
+        Populate logistics fields from related stock picking and customer defaults.
         This is called at invoice creation to source fields from the DS.
-        
+
         Fields populated:
-        - x_studio_port_of_destination
-        - x_studio_port_of_loading
-        - x_studio_invoice_number
-        - x_studio_destination_country
+        - x_studio_port_of_destination (from customer default or picking)
+        - x_studio_port_of_loading (from picking)
+        - x_studio_invoice_number (from picking)
+        - x_studio_destination_country (from partner country)
         """
         for move in self:
-            # Find related picking from invoice lines
+            # Find related picking and sale order from invoice lines
             pickings = self.env['stock.picking']
+            sale_orders = self.env['sale.order']
             for line in move.invoice_line_ids:
                 if line.sale_line_ids:
                     for sale_line in line.sale_line_ids:
                         pickings |= sale_line.move_ids.mapped('picking_id')
+                        sale_orders |= sale_line.order_id
                 if line.purchase_line_id:
                     pickings |= line.purchase_line_id.move_ids.mapped('picking_id')
+                    # Find SO from PO origin
+                    if line.purchase_line_id.order_id.origin:
+                        so = self.env['sale.order'].search([
+                            ('name', '=', line.purchase_line_id.order_id.origin)
+                        ], limit=1)
+                        if so:
+                            sale_orders |= so
 
-            _logger.warning("KLF_DROPSHIP: AccountMove %s has %d related pickings", move.name, len(pickings))
+            _logger.warning("KLF_DROPSHIP: AccountMove %s has %d related pickings, %d SOs",
+                         move.name, len(pickings), len(sale_orders))
 
-            # Get the first picking with data to populate fields
+            # Source port of destination from customer default (via SO partner)
+            if not move.x_studio_port_of_destination and sale_orders:
+                partner = sale_orders[0].partner_id
+                if partner and partner.x_studio_default_destination_port:
+                    _logger.warning("KLF_DROPSHIP: Move Dest from customer default: %s",
+                                 partner.x_studio_default_destination_port)
+                    move.x_studio_port_of_destination = partner.x_studio_default_destination_port
+
+            # Get data from pickings
             for picking in pickings:
                 _logger.warning("KLF_DROPSHIP: Processing picking %s for AccountMove %s", picking.name, move.name)
-                _logger.warning("KLF_DROPSHIP: Check Dest: %s vs %s", picking.x_studio_port_of_destination, move.x_studio_port_of_destination)
-                _logger.warning("KLF_DROPSHIP: Check Loading %s vs %s", picking.x_studio_port_of_loading, move.x_studio_port_of_loading)
-                _logger.warning("KLF_DROPSHIP: Check InvNumber %s vs %s", picking.x_studio_invoice_number, move.x_studio_invoice_number)
                 if picking.x_studio_port_of_destination and not move.x_studio_port_of_destination:
-                    _logger.warning("KLF_DROPSHIP: Move Dest to %s", picking.x_studio_port_of_destination)
                     move.x_studio_port_of_destination = picking.x_studio_port_of_destination
                 if picking.x_studio_port_of_loading and not move.x_studio_port_of_loading:
-                    _logger.warning("KLF_DROPSHIP: Move Loading to %s", picking.x_studio_port_of_loading)
                     move.x_studio_port_of_loading = picking.x_studio_port_of_loading
                 if picking.x_studio_invoice_number and not move.x_studio_invoice_number:
-                    _logger.warning("KLF_DROPSHIP: Move InvNumber to %s", picking.x_studio_invoice_number)
                     move.x_studio_invoice_number = picking.x_studio_invoice_number
-                # Destination country from partner if available
                 if picking.partner_id and picking.partner_id.country_id and not move.x_studio_destination_country:
                     move.x_studio_destination_country = picking.partner_id.country_id.id
 
@@ -73,6 +84,8 @@ class AccountMoveLine(models.Model):
                          line.id, line.product_id.name if line.product_id else 'N/A')
             line._populate_po_no()
             line._populate_lot_number()
+            line._populate_expiration_date()
+            line._populate_delivery_date()
         return lines
 
     def _should_apply_pricelist(self):
@@ -240,28 +253,88 @@ class AccountMoveLine(models.Model):
 
     def _populate_po_no(self):
         """
-        Populate x_studio_po_no_ref from related sale or purchase order.
-        Links the invoice line back to the original Sales Order.
+        Populate x_studio_po_no_ref from related sale order's customer PO number.
+        Sources from x_studio_purchase_order_number on the SO header.
         """
         for line in self:
             if line.x_studio_po_no_ref:
                 _logger.warning("KLF_DROPSHIP: AccountMoveLine %s already has x_studio_po_no_ref", line.id)
                 continue
 
+            sale_order = None
+
             # Try from sale line
             if line.sale_line_ids:
-                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no_ref from sale_line_ids",
-                             line.id)
-                line.x_studio_po_no_ref = line.sale_line_ids[0].order_id.name
-                continue
+                sale_order = line.sale_line_ids[0].order_id
 
             # Try from purchase line
-            if line.purchase_line_id and line.purchase_line_id.order_id.origin:
+            elif line.purchase_line_id and line.purchase_line_id.order_id.origin:
                 sale_order = self.env['sale.order'].search([
                     ('name', '=', line.purchase_line_id.order_id.origin)
                 ], limit=1)
-                if sale_order:
-                    _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no_ref = %s from PO origin",
-                                 line.id, sale_order.name)
-                    line.x_studio_po_no_ref = sale_order.name
+
+            if sale_order and sale_order.x_studio_purchase_order_number:
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_po_no_ref = %s from SO %s",
+                             line.id, sale_order.x_studio_purchase_order_number, sale_order.name)
+                line.x_studio_po_no_ref = sale_order.x_studio_purchase_order_number
+
+    def _populate_expiration_date(self):
+        """
+        Populate x_studio_expiration_date from related stock move lines (lot expiration date).
+        Traverses: invoice line → sale/purchase line → stock.move → stock.move.line → lot_id.expiration_date
+        """
+        for line in self:
+            if line.x_studio_expiration_date:
+                continue
+
+            expiration_dates = []
+
+            # From sale lines
+            if line.sale_line_ids:
+                for sale_line in line.sale_line_ids:
+                    for move in sale_line.move_ids:
+                        for move_line in move.move_line_ids:
+                            if move_line.lot_id and move_line.lot_id.expiration_date:
+                                exp_date = move_line.lot_id.expiration_date.date() if hasattr(move_line.lot_id.expiration_date, 'date') else move_line.lot_id.expiration_date
+                                if exp_date not in expiration_dates:
+                                    expiration_dates.append(exp_date)
+
+            # From purchase line
+            elif line.purchase_line_id:
+                for move in line.purchase_line_id.move_ids:
+                    for move_line in move.move_line_ids:
+                        if move_line.lot_id and move_line.lot_id.expiration_date:
+                            exp_date = move_line.lot_id.expiration_date.date() if hasattr(move_line.lot_id.expiration_date, 'date') else move_line.lot_id.expiration_date
+                            if exp_date not in expiration_dates:
+                                expiration_dates.append(exp_date)
+
+            if expiration_dates:
+                # Take the earliest expiration date
+                earliest = min(expiration_dates)
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting x_studio_expiration_date = %s",
+                             line.id, earliest)
+                line.x_studio_expiration_date = earliest
+
+    def _populate_delivery_date(self):
+        """
+        Populate x_studio_delivery_date from related sale or purchase line.
+        """
+        for line in self:
+            if line.x_studio_delivery_date:
+                continue
+
+            # From sale line
+            if line.sale_line_ids:
+                for sale_line in line.sale_line_ids:
+                    if sale_line.x_studio_delivery_date:
+                        line.x_studio_delivery_date = sale_line.x_studio_delivery_date
+                        _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting delivery_date = %s from SO line",
+                                     line.id, sale_line.x_studio_delivery_date)
+                        break
+
+            # From purchase line
+            elif line.purchase_line_id and line.purchase_line_id.x_studio_delivery_date:
+                line.x_studio_delivery_date = line.purchase_line_id.x_studio_delivery_date
+                _logger.warning("KLF_DROPSHIP: AccountMoveLine %s setting delivery_date = %s from PO line",
+                             line.id, line.purchase_line_id.x_studio_delivery_date)
 

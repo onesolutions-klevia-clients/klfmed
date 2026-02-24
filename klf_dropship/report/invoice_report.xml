@@ -23,7 +23,7 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">klf_dropship.report_invoice_klfmed</field>
         <field name="report_file">klf_dropship.report_invoice_klfmed</field>
-        <field name="print_report_name">'Commercial Invoice - %s' % (object.name if object.name and object.name != '/' else 'Draft')</field>
+        <field name="print_report_name">'%s-INVOICE-%s-%s' % (object.x_studio_invoice_number or (object.name if object.name and object.name != '/' else 'Draft'), (object.partner_id.name or '').upper(), object.invoice_date.strftime('%d-%b-%Y').upper() if object.invoice_date else '')</field>
         <field name="binding_model_id" ref="account.model_account_move"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="klf_dropship.paperformat_klfmed_invoice"/>
@@ -43,12 +43,16 @@
         <t t-call="web.basic_layout">
             <style>
                 table, td, th {
-                    border: none;
+                    border: none !important;
+                    border-collapse: collapse;
                 }
                 html, body {
                     height: 100%;
                     margin: 0;
                     padding: 0;
+                }
+                * {
+                    border: none !important;
                 }
                 .page {
                     min-height: 100%;
@@ -70,7 +74,7 @@
                     color: #666;
                     text-align: center;
                     padding: 15px 40px;
-                    border-top: 1px solid #ddd;
+                    border-top: 1px solid #ddd !important;
                     margin-top: auto;
                 }
                 .klfmed-invoice .header-section {
@@ -103,12 +107,12 @@
                     font-weight: bold;
                     margin: 25px 0;
                     padding-bottom: 10px;
-                    border-bottom: 2px solid #0066a1;
+                    border-bottom: 2px solid #0066a1 !important;
                 }
                 .klfmed-invoice .ship-to-box {
                     background-color: #f8f9fa;
                     padding: 15px;
-                    border-left: 4px solid #0066a1;
+                    border-left: 4px solid #0066a1 !important;
                     margin-bottom: 20px;
                 }
                 .klfmed-invoice .ship-to-title {
@@ -142,13 +146,15 @@
                     padding: 10px 8px;
                     text-align: left;
                     font-weight: 600;
+                    border: none !important;
                 }
                 .klfmed-invoice .lines-table th.text-right {
                     text-align: right;
                 }
                 .klfmed-invoice .lines-table td {
                     padding: 8px;
-                    border-bottom: 1px solid #e0e0e0;
+                    border: none !important;
+                    border-bottom: 1px solid #e0e0e0 !important;
                     vertical-align: top;
                 }
                 .klfmed-invoice .lines-table tr:nth-child(even) {
@@ -181,7 +187,7 @@
                 .klfmed-invoice .banking-section {
                     margin-top: 30px;
                     padding-top: 20px;
-                    border-top: 2px solid #0066a1;
+                    border-top: 2px solid #0066a1 !important;
                 }
                 .klfmed-invoice .banking-table {
                     font-size: 9pt;
@@ -308,10 +314,10 @@
                     <thead>
                         <tr>
                             <th style="width: 10%;">Product Code</th>
-                            <th style="width: 24%;">Description</th>
-                            <th style="width: 10%;">Lot No.</th>
-                            <th style="width: 10%;">Exp. Date</th>
-                            <th style="width: 8%;" class="text-right">Qty</th>
+                            <th style="width: 30%;">Description</th>
+                            <th style="width: 9%;">Lot No.</th>
+                            <th style="width: 9%;">Exp. Date</th>
+                            <th style="width: 6%;" class="text-right">Qty</th>
                             <th style="width: 12%;">PO no.</th>
                             <th style="width: 12%;" class="text-right">Unit Price</th>
                             <th style="width: 12%;" class="text-right">Amount</th>
@@ -325,7 +331,7 @@
                                 <td><span t-if="line.x_studio_lot_number" t-field="line.x_studio_lot_number"/></td>
                                 <td><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
                                 <td class="text-right">
-                                    <span t-field="line.quantity"/>
+                                    <span t-esc="'{:,.0f}'.format(line.quantity)"/>
                                     <span t-if="line.product_uom_id" style="font-size: 7pt;" t-field="line.product_uom_id.name"/>
                                 </td>
                                 <td><span t-if="line.x_studio_po_no_ref" t-field="line.x_studio_po_no_ref"/></td>
@@ -362,6 +368,11 @@
                     </table>
                 </div>
 
+                <!-- Origin -->
+                <div t-if="o.x_studio_origin" style="margin-top: 15px; font-size: 9pt;">
+                    <strong>Origin:</strong> <span t-field="o.x_studio_origin"/>
+                </div>
+
                 <!-- Payment Terms -->
                 <div class="payment-terms" t-if="o.invoice_payment_term_id">
                     <strong>Terms of payment:</strong>
@@ -373,30 +384,43 @@
                     <table class="banking-table">
                         <tr>
                             <td class="label">Beneficiary</td>
-                            <td><span t-field="o.company_id.name"/></td>
+                            <td>KLFmed Europe GmbH</td>
                         </tr>
-                        <t t-if="o.partner_bank_id">
+                        <tr>
+                            <td class="label">Bank account</td>
+                            <td><span t-esc="o.currency_id.name"/> Bank Account</td>
+                        </tr>
+
+                        <!-- EUR -->
+                        <t t-if="o.currency_id.name == 'EUR'">
                             <tr>
-                                <td class="label">Bank account</td>
-                                <td><span t-esc="o.currency_id.name"/> Bank Account</td>
-                            </tr>
-                            <tr t-if="o.partner_bank_id.acc_number">
-                                <td class="label">IBAN</td>
-                                <td><span t-field="o.partner_bank_id.acc_number"/></td>
-                            </tr>
-                            <tr t-if="o.partner_bank_id.bank_id">
-                                <td class="label">Bank</td>
-                                <td>
-                                    <span t-field="o.partner_bank_id.bank_id.name"/>
-                                    <t t-if="o.partner_bank_id.bank_id.city"> - <span t-field="o.partner_bank_id.bank_id.city"/></t>
-                                    <t t-if="o.partner_bank_id.bank_id.country"> - <span t-field="o.partner_bank_id.bank_id.country.name"/></t>
-                                </td>
-                            </tr>
-                            <tr t-if="o.partner_bank_id.bank_id.bic">
-                                <td class="label">BIC / Swift</td>
-                                <td><span t-field="o.partner_bank_id.bank_id.bic"/></td>
+                                <td class="label">IBAN No.</td>
+                                <td>CH69 0027 3273 1390 8560 A</td>
                             </tr>
                         </t>
+                        <!-- USD -->
+                        <t t-if="o.currency_id.name == 'USD'">
+                            <tr>
+                                <td class="label">IBAN No.</td>
+                                <td>CH03 0027 3273 1390 8561 V</td>
+                            </tr>
+                        </t>
+                        <!-- CHF -->
+                        <t t-if="o.currency_id.name == 'CHF'">
+                            <tr>
+                                <td class="label">IBAN No.</td>
+                                <td>CH46 0027 3273 1390 8501 J</td>
+                            </tr>
+                        </t>
+
+                        <tr>
+                            <td class="label">Bank</td>
+                            <td>UBS - Zug branch - Switzerland</td>
+                        </tr>
+                        <tr>
+                            <td class="label">BIC / Swift</td>
+                            <td>UBSWCHZH80A</td>
+                        </tr>
                     </table>
                 </div>
 

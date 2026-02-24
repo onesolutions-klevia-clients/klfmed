@@ -26,14 +26,15 @@ class PurchaseOrder(models.Model):
                 if sale_order:
                     sale_order.x_studio_supplier_po = order.id
                     _logger.warning("KLF_DROPSHIP: Set x_studio_supplier_po = %s on SO %s", order.id, sale_order.name)
-                    # Also update PO lines with the SO reference
-                    _logger.warning("KLF_DROPSHIP: PO has %d lines", len(order.order_line))
+                    # Also update PO lines with the customer PO number from SO header
+                    po_number = sale_order.x_studio_purchase_order_number
+                    _logger.warning("KLF_DROPSHIP: PO has %d lines, customer PO number: %s", len(order.order_line), po_number)
                     for line in order.order_line:
                         _logger.warning("KLF_DROPSHIP: Line: %s (id=%s) qty=%s -> x_studio_po_no=%s",
                                      line.product_id.name, line.id, line.product_qty, line.x_studio_po_no)
-                        if not line.x_studio_po_no:
-                            line.x_studio_po_no = sale_order.id
-                            _logger.warning("KLF_DROPSHIP: Updated line %s x_studio_po_no = %s", line.id, sale_order.id)
+                        if not line.x_studio_po_no and po_number:
+                            line.x_studio_po_no = po_number
+                            _logger.warning("KLF_DROPSHIP: Updated line %s x_studio_po_no = %s", line.id, po_number)
         return orders
 
 
@@ -58,8 +59,15 @@ class PurchaseOrderLine(models.Model):
                     ('name', '=', line.order_id.origin)
                 ], limit=1)
                 if sale_order:
+                    po_number = sale_order.x_studio_purchase_order_number
                     _logger.warning("KLF_DROPSHIP: Setting x_studio_po_no = %s (SO: %s) on line %s",
-                                 sale_order.id, sale_order.name, line.id)
-                    line.x_studio_po_no = sale_order.id
+                                 po_number, sale_order.name, line.id)
+                    if po_number:
+                        line.x_studio_po_no = po_number
+                    # Propagate delivery date from SO line to PO line
+                    if line.sale_line_id and line.sale_line_id.x_studio_delivery_date:
+                        line.x_studio_delivery_date = line.sale_line_id.x_studio_delivery_date
+                        _logger.warning("KLF_DROPSHIP: Propagated delivery_date %s to PO line %s",
+                                     line.sale_line_id.x_studio_delivery_date, line.id)
         return lines
 

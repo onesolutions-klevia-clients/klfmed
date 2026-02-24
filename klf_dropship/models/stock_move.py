@@ -27,8 +27,15 @@ class StockMove(models.Model):
                         ('name', '=', po.origin)
                     ], limit=1)
                     if sale_order:
+                        po_number = sale_order.x_studio_purchase_order_number
                         _logger.warning("KLF_DROPSHIP: Setting x_studio_po_no = %s on StockMove %s",
-                                     sale_order.id, move.id)
-                        move.x_studio_po_no = sale_order.id
+                                     po_number, move.id)
+                        if po_number:
+                            move.x_studio_po_no = po_number
+                # Propagate delivery date from PO line to stock move
+                if move.purchase_line_id and move.purchase_line_id.x_studio_delivery_date:
+                    move.x_studio_delivery_date = move.purchase_line_id.x_studio_delivery_date
+                    _logger.warning("KLF_DROPSHIP: Propagated delivery_date %s to StockMove %s",
+                                 move.purchase_line_id.x_studio_delivery_date, move.id)
         return moves
 
