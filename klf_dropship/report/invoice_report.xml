@@ -7,10 +7,10 @@
         <field name="default" eval="False"/>
         <field name="format">A4</field>
         <field name="orientation">Portrait</field>
-        <field name="margin_top">5</field>
-        <field name="margin_bottom">5</field>
-        <field name="margin_left">5</field>
-        <field name="margin_right">5</field>
+        <field name="margin_top">10</field>
+        <field name="margin_bottom">10</field>
+        <field name="margin_left">12</field>
+        <field name="margin_right">12</field>
         <field name="header_line" eval="False"/>
         <field name="header_spacing">0</field>
         <field name="dpi">90</field>
@@ -23,7 +23,7 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">klf_dropship.report_invoice_klfmed</field>
         <field name="report_file">klf_dropship.report_invoice_klfmed</field>
-        <field name="print_report_name">'%s-INVOICE-%s-%s' % (object.x_studio_invoice_number or (object.name if object.name and object.name != '/' else 'Draft'), (object.partner_id.name or '').upper(), object.invoice_date.strftime('%d-%b-%Y').upper() if object.invoice_date else '')</field>
+        <field name="print_report_name">'%s-INVOICE-%s-%s' % (object.x_studio_invoice_number or (object.name if object.name and object.name != '/' else 'Draft'), (object.partner_id.name or '').upper(), (object.invoice_date or object.date or time.strftime('%Y-%m-%d')).strftime('%d-%b-%Y').upper())</field>
         <field name="binding_model_id" ref="account.model_account_move"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="klf_dropship.paperformat_klfmed_invoice"/>
@@ -42,6 +42,9 @@
     <template id="report_invoice_klfmed_document">
         <t t-call="web.basic_layout">
             <style>
+                * {
+                    border: none !important;
+                }
                 table, td, th {
                     border: none !important;
                     border-collapse: collapse;
@@ -51,204 +54,156 @@
                     margin: 0;
                     padding: 0;
                 }
-                * {
-                    border: none !important;
-                }
-                .page {
-                    min-height: 100%;
-                    display: flex;
-                    flex-direction: column;
-                }
                 .klfmed-invoice {
-                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    font-family: Arial, Helvetica, sans-serif;
                     font-size: 10pt;
                     color: #333;
-                    padding: 20px 40px;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    flex: 1;
-                }
-                .klfmed-footer {
-                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                    font-size: 8pt;
-                    color: #666;
-                    text-align: center;
-                    padding: 15px 40px;
-                    border-top: 1px solid #ddd !important;
-                    margin-top: auto;
-                }
-                .klfmed-invoice .header-section {
-                    margin-bottom: 30px;
+                    padding: 10px 20px;
                 }
                 .klfmed-invoice .company-info {
                     font-size: 9pt;
-                    line-height: 1.5;
-                    color: #555;
+                    line-height: 1.6;
+                    color: #333;
                 }
                 .klfmed-invoice .company-name {
-                    font-size: 11pt;
+                    font-size: 10pt;
                     font-weight: bold;
                     color: #0066a1;
-                    margin-bottom: 5px;
                 }
                 .klfmed-invoice .customer-info {
                     font-size: 9pt;
-                    line-height: 1.5;
+                    line-height: 1.6;
                     text-align: right;
                 }
                 .klfmed-invoice .customer-name {
-                    font-size: 11pt;
+                    font-size: 10pt;
                     font-weight: bold;
-                    margin-bottom: 5px;
                 }
                 .klfmed-invoice .document-title {
-                    color: #0066a1;
-                    font-size: 18pt;
+                    font-size: 14pt;
                     font-weight: bold;
-                    margin: 25px 0;
-                    padding-bottom: 10px;
-                    border-bottom: 2px solid #0066a1 !important;
+                    margin: 20px 0 15px 0;
                 }
-                .klfmed-invoice .ship-to-box {
-                    background-color: #f8f9fa;
-                    padding: 15px;
-                    border-left: 4px solid #0066a1 !important;
-                    margin-bottom: 20px;
-                }
-                .klfmed-invoice .ship-to-title {
-                    color: #0066a1;
-                    font-weight: bold;
-                    margin-bottom: 8px;
-                }
-                .klfmed-invoice .info-table {
-                    width: 100%;
+                .klfmed-invoice .ship-to-section {
                     font-size: 9pt;
+                    line-height: 1.5;
+                    margin-bottom: 15px;
+                }
+                .klfmed-invoice .ship-to-label {
+                    font-weight: bold;
                     margin-bottom: 5px;
                 }
-                .klfmed-invoice .info-table td {
-                    padding: 5px 10px 5px 0;
-                    vertical-align: top;
+                .klfmed-invoice .info-section {
+                    font-size: 9pt;
+                    line-height: 1.8;
+                    margin-bottom: 15px;
                 }
-                .klfmed-invoice .info-table .label {
+                .klfmed-invoice .info-section .label {
                     font-weight: bold;
-                    color: #555;
-                    width: 45%;
                 }
                 .klfmed-invoice .lines-table {
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 8pt;
-                    margin-top: 20px;
+                    font-size: 8.5pt;
+                    margin-top: 10px;
                 }
                 .klfmed-invoice .lines-table th {
-                    background-color: #0066a1;
-                    color: white;
-                    padding: 10px 8px;
+                    padding: 8px 6px;
                     text-align: left;
-                    font-weight: 600;
-                    border: none !important;
+                    font-weight: bold;
+                    font-size: 8pt;
+                    border-bottom: 1px solid #333 !important;
+                    border-top: 1px solid #333 !important;
                 }
                 .klfmed-invoice .lines-table th.text-right {
                     text-align: right;
                 }
                 .klfmed-invoice .lines-table td {
-                    padding: 8px;
-                    border: none !important;
-                    border-bottom: 1px solid #e0e0e0 !important;
+                    padding: 8px 6px;
                     vertical-align: top;
-                }
-                .klfmed-invoice .lines-table tr:nth-child(even) {
-                    background-color: #f9f9f9;
                 }
                 .klfmed-invoice .text-right {
                     text-align: right;
                 }
-                .klfmed-invoice .totals-section {
-                    margin-top: 20px;
+                .klfmed-invoice .total-line {
+                    margin-top: 30px;
+                    font-size: 10pt;
                 }
-                .klfmed-invoice .totals-table {
-                    width: 280px;
-                    margin-left: auto;
-                    font-size: 9pt;
-                }
-                .klfmed-invoice .totals-table td {
-                    padding: 8px 12px;
-                }
-                .klfmed-invoice .totals-table .total-row {
-                    background-color: #0066a1;
-                    color: white;
+                .klfmed-invoice .total-line td {
+                    padding: 8px 6px;
                     font-weight: bold;
                 }
-                .klfmed-invoice .payment-terms {
-                    margin-top: 25px;
+                .klfmed-invoice .total-line .total-label {
+                    border-left: 4px solid #0066a1 !important;
+                    padding-left: 10px;
+                }
+                .klfmed-invoice .payment-section {
+                    margin-top: 40px;
                     font-size: 9pt;
-                    padding: 10px 0;
                 }
                 .klfmed-invoice .banking-section {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 2px solid #0066a1 !important;
-                }
-                .klfmed-invoice .banking-table {
+                    margin-top: 25px;
                     font-size: 9pt;
                 }
-                .klfmed-invoice .banking-table td {
-                    padding: 4px 15px 4px 0;
-                }
-                .klfmed-invoice .banking-table .label {
+                .klfmed-invoice .banking-section .label {
                     font-weight: bold;
-                    color: #555;
                     width: 120px;
+                    display: inline-block;
+                }
+                .klfmed-invoice .wire-message {
+                    margin-top: 30px;
+                    font-size: 8.5pt;
+                    line-height: 1.5;
                 }
             </style>
 
-            <div class="page">
             <div class="klfmed-invoice">
                 <!-- Header Section -->
-                <div class="header-section">
-                    <table style="width: 100%;">
-                        <tr>
-                            <!-- Company Info (Left) -->
-                            <td style="width: 50%; vertical-align: top;">
-                                <div style="margin-bottom: 15px;">
-                                    <img t-if="o.company_id.logo" t-att-src="image_data_uri(o.company_id.logo)"
-                                         style="max-height: 70px;" alt="Company Logo"/>
-                                </div>
-                                <div class="company-info">
-                                    <div class="company-name" t-field="o.company_id.name"/>
-                                    <span t-field="o.company_id.street"/><br/>
-                                    <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/> - <span t-field="o.company_id.country_id.name"/><br/>
-                                    <br/>
-                                    <span t-if="o.company_id.phone">Tel. <span t-field="o.company_id.phone"/><br/></span>
-                                    <span t-if="o.company_id.company_registry">Registration number: <span t-field="o.company_id.company_registry"/></span>
-                                </div>
-                            </td>
-                            <!-- Customer Info (Right) -->
-                            <td style="width: 50%; vertical-align: top;">
-                                <div class="customer-info">
-                                    <div class="customer-name" t-field="o.partner_id.name"/>
-                                    <t t-if="o.partner_id.street">
-                                        <span t-field="o.partner_id.street"/><br/>
-                                    </t>
-                                    <t t-if="o.partner_id.street2">
-                                        <span t-field="o.partner_id.street2"/><br/>
-                                    </t>
+                <table style="width: 100%; margin-bottom: 10px;">
+                    <tr>
+                        <!-- Company Info (Left) -->
+                        <td style="width: 55%; vertical-align: top;">
+                            <div style="margin-bottom: 10px;">
+                                <img t-if="o.company_id.logo" t-att-src="image_data_uri(o.company_id.logo)"
+                                     style="max-height: 60px;" alt="Company Logo"/>
+                            </div>
+                            <div class="company-info">
+                                <div class="company-name" t-field="o.company_id.name"/>
+                                <span t-field="o.company_id.street"/><br/>
+                                <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/> - <span t-field="o.company_id.country_id.name"/><br/>
+                                <br/>
+                                <span t-if="o.company_id.phone">Tel. <span t-field="o.company_id.phone"/><br/></span>
+                                <span t-if="o.company_id.company_registry">Registration number: <span t-field="o.company_id.company_registry"/></span>
+                            </div>
+                        </td>
+                        <!-- Customer Info (Right) -->
+                        <td style="width: 45%; vertical-align: top;">
+                            <div class="customer-info">
+                                <div class="customer-name" t-field="o.partner_id.name"/>
+                                <t t-if="o.partner_id.street">
+                                    <span t-field="o.partner_id.street"/><br/>
+                                </t>
+                                <t t-if="o.partner_id.street2">
+                                    <span t-field="o.partner_id.street2"/><br/>
+                                </t>
+                                <t t-if="o.partner_id.city">
                                     <span t-field="o.partner_id.city"/>
-                                    <t t-if="o.partner_id.zip"> <span t-field="o.partner_id.zip"/></t><br/>
-                                    <span t-field="o.partner_id.country_id.name"/>
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
+                                    <t t-if="o.partner_id.zip"> <span t-field="o.partner_id.zip"/></t>
+                                    <br/>
+                                </t>
+                                <span t-field="o.partner_id.country_id.name"/>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
 
                 <!-- Document Title -->
                 <div class="document-title">COMMERCIAL INVOICE</div>
 
                 <!-- Ship-To Section -->
                 <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
-                    <div class="ship-to-box">
-                        <div class="ship-to-title">SHIP TO:</div>
+                    <div class="ship-to-section">
+                        <div class="ship-to-label">SHIP TO :</div>
                         <span t-field="o.partner_shipping_id.name"/><br/>
                         <t t-if="o.partner_shipping_id.street">
                             <span t-field="o.partner_shipping_id.street"/><br/>
@@ -256,71 +211,64 @@
                         <t t-if="o.partner_shipping_id.street2">
                             <span t-field="o.partner_shipping_id.street2"/><br/>
                         </t>
-                        <span t-field="o.partner_shipping_id.city"/>
-                        <t t-if="o.partner_shipping_id.zip"> <span t-field="o.partner_shipping_id.zip"/></t><br/>
+                        <t t-if="o.partner_shipping_id.city">
+                            <span t-field="o.partner_shipping_id.city"/>
+                            <t t-if="o.partner_shipping_id.zip"> <span t-field="o.partner_shipping_id.zip"/></t>
+                            <br/>
+                        </t>
                         <span t-field="o.partner_shipping_id.country_id.name"/>
                     </div>
                 </t>
 
                 <!-- Shipment & Invoice Info -->
-                <table style="width: 100%; margin-bottom: 20px;">
-                    <tr>
-                        <!-- Shipment Info (Left) -->
-                        <td style="width: 50%; vertical-align: top; padding-right: 20px;">
-                            <table class="info-table">
-                                <tr t-if="o.x_studio_port_of_loading">
-                                    <td class="label">Port of Loading</td>
-                                    <td><span t-field="o.x_studio_port_of_loading"/></td>
-                                </tr>
-                                <tr t-if="o.x_studio_port_of_destination">
-                                    <td class="label">Port of Destination</td>
-                                    <td><span t-field="o.x_studio_port_of_destination"/></td>
-                                </tr>
-                                <tr t-if="o.invoice_incoterm_id">
-                                    <td class="label">Incoterms</td>
-                                    <td><span t-field="o.invoice_incoterm_id.code"/> <span t-field="o.invoice_incoterm_id.name"/></td>
-                                </tr>
-                                <tr t-if="o.x_studio_bl_no">
-                                    <td class="label">BL No.</td>
-                                    <td><span t-field="o.x_studio_bl_no"/></td>
-                                </tr>
-                            </table>
-                        </td>
-                        <!-- Invoice Info (Right) -->
-                        <td style="width: 50%; vertical-align: top;">
-                            <table class="info-table">
-                                <tr>
-                                    <td class="label">Invoice number</td>
-                                    <td>
-                                        <span t-if="o.name and o.name != '/'" t-field="o.name"/>
-                                        <span t-else="">Draft</span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="label">Invoice date</td>
-                                    <td><span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/></td>
-                                </tr>
-                                <tr t-if="o.x_studio_yr_order_no">
-                                    <td class="label">Yr/order no.</td>
-                                    <td><span t-field="o.x_studio_yr_order_no"/></td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                </table>
+                <div class="info-section">
+                    <table style="width: 100%;">
+                        <tr>
+                            <!-- Shipment Info (Left) -->
+                            <td style="width: 50%; vertical-align: top;">
+                                <t t-if="o.x_studio_port_of_loading">
+                                    <span class="label">Loading : </span><span t-field="o.x_studio_port_of_loading"/><br/>
+                                </t>
+                                <t t-if="o.x_studio_port_of_destination">
+                                    <span class="label">Destination : </span><span t-field="o.x_studio_port_of_destination"/><br/>
+                                </t>
+                                <t t-if="o.invoice_incoterm_id">
+                                    <span class="label">Incoterms :</span><span t-field="o.invoice_incoterm_id.code"/> <span t-field="o.invoice_incoterm_id.name"/><br/>
+                                </t>
+                                <t t-if="o.x_studio_bl_no">
+                                    <span class="label">BL No. : </span><span t-field="o.x_studio_bl_no"/><br/>
+                                </t>
+                            </td>
+                            <!-- Invoice Info (Right) -->
+                            <td style="width: 50%; vertical-align: top;">
+                                <span class="label">Invoice number : </span>
+                                <span t-if="o.x_studio_invoice_number" t-field="o.x_studio_invoice_number"/>
+                                <span t-elif="o.name and o.name != '/'" t-field="o.name"/>
+                                <span t-else="">Draft</span>
+                                <br/>
+                                <span class="label">Date : </span>
+                                <span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
+                                <br/>
+                                <t t-if="o.x_studio_yr_order_no">
+                                    <span class="label">Yr/order no.: </span><span t-field="o.x_studio_yr_order_no"/><br/>
+                                </t>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
 
                 <!-- Invoice Lines Table -->
                 <table class="lines-table">
                     <thead>
                         <tr>
-                            <th style="width: 10%;">Product Code</th>
-                            <th style="width: 30%;">Description</th>
+                            <th style="width: 8%;">Product<br/>Code</th>
+                            <th style="width: 28%;">Description</th>
                             <th style="width: 9%;">Lot No.</th>
-                            <th style="width: 9%;">Exp. Date</th>
-                            <th style="width: 6%;" class="text-right">Qty</th>
-                            <th style="width: 12%;">PO no.</th>
-                            <th style="width: 12%;" class="text-right">Unit Price</th>
-                            <th style="width: 12%;" class="text-right">Amount</th>
+                            <th style="width: 9%;">Expiration<br/>Date</th>
+                            <th style="width: 8%;" class="text-right">Quantity<br/>(Units)</th>
+                            <th style="width: 10%;">PO no.</th>
+                            <th style="width: 12%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
+                            <th style="width: 12%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -332,7 +280,6 @@
                                 <td><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
                                 <td class="text-right">
                                     <span t-esc="'{:,.0f}'.format(line.quantity)"/>
-                                    <span t-if="line.product_uom_id" style="font-size: 7pt;" t-field="line.product_uom_id.name"/>
                                 </td>
                                 <td><span t-if="line.x_studio_po_no_ref" t-field="line.x_studio_po_no_ref"/></td>
                                 <td class="text-right">
@@ -346,95 +293,67 @@
                     </tbody>
                 </table>
 
-                <!-- Totals Section -->
-                <div class="totals-section">
-                    <table class="totals-table">
-                        <tr>
-                            <td style="font-weight: bold;">Total quantity</td>
-                            <td class="text-right">
-                                <t t-set="total_qty" t-value="0"/>
-                                <t t-foreach="o.invoice_line_ids" t-as="qty_line">
-                                    <t t-set="total_qty" t-value="total_qty + qty_line.quantity"/>
-                                </t>
-                                <span t-esc="'{:,.0f}'.format(total_qty)"/>
-                            </td>
-                        </tr>
-                        <tr class="total-row">
-                            <td>Total amount</td>
-                            <td class="text-right">
-                                <span t-field="o.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
+                <!-- Total -->
+                <table style="width: 100%; margin-top: 40px;">
+                    <tr class="total-line">
+                        <td style="width: 76%;"></td>
+                        <td class="total-label" style="font-weight: bold; font-size: 11pt;">TOTAL</td>
+                        <td class="text-right" style="font-size: 11pt;">
+                            <span t-field="o.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                        </td>
+                    </tr>
+                </table>
 
                 <!-- Origin (from related Sale Order) -->
                 <t t-set="related_so" t-value="o.invoice_line_ids.sale_line_ids.order_id[:1]"/>
                 <div t-if="related_so and related_so.x_studio_origin" style="margin-top: 15px; font-size: 9pt;">
-                    <strong>Origin:</strong> <span t-esc="related_so.x_studio_origin"/>
+                    <strong>Origin :</strong> <span t-esc="related_so.x_studio_origin"/>
                 </div>
 
                 <!-- Payment Terms -->
-                <div class="payment-terms" t-if="o.invoice_payment_term_id">
-                    <strong>Terms of payment:</strong>
-                    <span t-field="o.invoice_payment_term_id.name" style="text-transform: uppercase;"/>
+                <div class="payment-section">
+                    <t t-if="o.invoice_payment_term_id">
+                        <strong>TERMS OF PAYMENT : </strong>
+                        <span t-field="o.invoice_payment_term_id.name" style="text-transform: uppercase;"/>
+                    </t>
                 </div>
 
                 <!-- Banking Information -->
                 <div class="banking-section">
-                    <table class="banking-table">
-                        <tr>
-                            <td class="label">Beneficiary</td>
-                            <td>KLFmed Europe GmbH</td>
-                        </tr>
-                        <tr>
-                            <td class="label">Bank account</td>
-                            <td><span t-esc="o.currency_id.name"/> Bank Account</td>
-                        </tr>
-
+                    <div style="margin-bottom: 3px;">
+                        <span class="label">BENEFICIARY </span>KLFmed Europe GmbH
+                    </div>
+                    <div style="margin-bottom: 3px; margin-left: 30px;">
+                        <span t-esc="o.currency_id.name"/> Bank Account
+                    </div>
+                    <div style="margin-bottom: 3px;">
                         <!-- EUR -->
                         <t t-if="o.currency_id.name == 'EUR'">
-                            <tr>
-                                <td class="label">IBAN No.</td>
-                                <td>CH69 0027 3273 1390 8560 A</td>
-                            </tr>
+                            <span class="label">IBAN No. : </span>CH69 0027 3273 1390 8560 A
                         </t>
                         <!-- USD -->
                         <t t-if="o.currency_id.name == 'USD'">
-                            <tr>
-                                <td class="label">IBAN No.</td>
-                                <td>CH03 0027 3273 1390 8561 V</td>
-                            </tr>
+                            <span class="label">IBAN No. : </span>CH030027327313908561V
                         </t>
                         <!-- CHF -->
                         <t t-if="o.currency_id.name == 'CHF'">
-                            <tr>
-                                <td class="label">IBAN No.</td>
-                                <td>CH46 0027 3273 1390 8501 J</td>
-                            </tr>
+                            <span class="label">IBAN No. : </span>CH460027327313908501J
                         </t>
-
-                        <tr>
-                            <td class="label">Bank</td>
-                            <td>UBS - Zug branch - Switzerland</td>
-                        </tr>
-                        <tr>
-                            <td class="label">BIC / Swift</td>
-                            <td>UBSWCHZH80A</td>
-                        </tr>
-                    </table>
+                    </div>
+                    <div style="margin-left: 30px; margin-bottom: 3px;">
+                        UBS - Zug branch - Switzerland
+                    </div>
+                    <div style="margin-left: 30px;">
+                        BIC Swift code : UBSWCHZH80A
+                    </div>
                 </div>
 
-            </div>
+                <!-- Wire Transfer Message -->
+                <div class="wire-message">
+                    <p>PLEASE INSTRUCT YOUR BANK TO USE THE CODE <strong>"OUR"</strong> WHEN MAKING THE WIRE TRANSFER.</p>
+                    <p>THIS IN ORDER TO ENSURE THAT WE RECEIVE THE FULL AMOUNT (THE CHARGES FROM OUR BANK WILL BE COVERED BY US). THANK YOU.</p>
+                </div>
 
-            <!-- Footer -->
-            <div class="klfmed-footer">
-                <span t-field="o.company_id.name"/> -
-                <span t-field="o.company_id.street"/>,
-                <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/>,
-                <span t-field="o.company_id.country_id.name"/>
-                <t t-if="o.company_id.phone"> | Tel: <span t-field="o.company_id.phone"/></t>
-            </div>
             </div>
         </t>
     </template>
