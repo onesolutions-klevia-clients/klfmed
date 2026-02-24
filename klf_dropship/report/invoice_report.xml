@@ -126,16 +126,13 @@
                     text-align: right;
                 }
                 .klfmed-invoice .total-line {
-                    margin-top: 30px;
-                    font-size: 10pt;
+                    border-top: 2px solid #333 !important;
+                    border-bottom: 2px solid #333 !important;
                 }
                 .klfmed-invoice .total-line td {
                     padding: 8px 6px;
                     font-weight: bold;
-                }
-                .klfmed-invoice .total-line .total-label {
-                    border-left: 4px solid #0066a1 !important;
-                    padding-left: 10px;
+                    font-size: 10pt;
                 }
                 .klfmed-invoice .payment-section {
                     margin-top: 40px;
@@ -173,7 +170,7 @@
                                 <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/> - <span t-field="o.company_id.country_id.name"/><br/>
                                 <br/>
                                 <span t-if="o.company_id.phone">Tel. <span t-field="o.company_id.phone"/><br/></span>
-                                <span t-if="o.company_id.company_registry">Registration number: <span t-field="o.company_id.company_registry"/></span>
+                                Registration number: <span t-if="o.company_id.company_registry" t-field="o.company_id.company_registry"/>
                             </div>
                         </td>
                         <!-- Customer Info (Right) -->
@@ -249,9 +246,7 @@
                                 <span class="label">Date : </span>
                                 <span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
                                 <br/>
-                                <t t-if="o.x_studio_yr_order_no">
-                                    <span class="label">Yr/order no.: </span><span t-field="o.x_studio_yr_order_no"/><br/>
-                                </t>
+                                <span class="label">Yr/order no.: </span><span t-if="o.x_studio_yr_order_no" t-field="o.x_studio_yr_order_no"/><br/>
                             </td>
                         </tr>
                     </table>
@@ -262,13 +257,13 @@
                     <thead>
                         <tr>
                             <th style="width: 8%;">Product<br/>Code</th>
-                            <th style="width: 28%;">Description</th>
-                            <th style="width: 9%;">Lot No.</th>
-                            <th style="width: 9%;">Expiration<br/>Date</th>
-                            <th style="width: 8%;" class="text-right">Quantity<br/>(Units)</th>
-                            <th style="width: 10%;">PO no.</th>
-                            <th style="width: 12%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
-                            <th style="width: 12%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
+                            <th style="width: 34%;">Description</th>
+                            <th style="width: 8%;">Lot No.</th>
+                            <th style="width: 8%;">Expiration<br/>Date</th>
+                            <th style="width: 7%;" class="text-right">Quantity<br/>(Units)</th>
+                            <th style="width: 9%;">PO no.</th>
+                            <th style="width: 11%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
+                            <th style="width: 11%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -294,11 +289,11 @@
                 </table>
 
                 <!-- Total -->
-                <table style="width: 100%; margin-top: 40px;">
+                <table style="width: 100%; margin-top: 40px; border-collapse: collapse;">
                     <tr class="total-line">
                         <td style="width: 76%;"></td>
-                        <td class="total-label" style="font-weight: bold; font-size: 11pt;">TOTAL</td>
-                        <td class="text-right" style="font-size: 11pt;">
+                        <td>TOTAL</td>
+                        <td class="text-right">
                             <span t-field="o.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                         </td>
                     </tr>
@@ -313,32 +308,34 @@
                 <!-- Payment Terms -->
                 <div class="payment-section">
                     <t t-if="o.invoice_payment_term_id">
-                        <strong>TERMS OF PAYMENT : </strong>
-                        <span t-field="o.invoice_payment_term_id.name" style="text-transform: uppercase;"/>
+                        <div><strong>TERMS OF PAYMENT :</strong></div>
+                        <div style="margin-left: 30px;">
+                            <span t-field="o.invoice_payment_term_id.name" style="text-transform: uppercase;"/>
+                        </div>
                     </t>
                 </div>
 
                 <!-- Banking Information -->
                 <div class="banking-section">
                     <div style="margin-bottom: 3px;">
-                        <span class="label">BENEFICIARY </span>KLFmed Europe GmbH
+                        <strong>BENEFICIARY :</strong>
                     </div>
-                    <div style="margin-bottom: 3px; margin-left: 30px;">
+                    <div style="margin-left: 30px; margin-bottom: 3px;">
+                        KLFmed Europe GmbH
+                    </div>
+                    <div style="margin-left: 30px; margin-bottom: 3px;">
                         <span t-esc="o.currency_id.name"/> Bank Account
                     </div>
                     <div style="margin-bottom: 3px;">
+                        <strong>IBAN No. :</strong>
+                    </div>
+                    <div style="margin-left: 30px; margin-bottom: 3px;">
                         <!-- EUR -->
-                        <t t-if="o.currency_id.name == 'EUR'">
-                            <span class="label">IBAN No. : </span>CH69 0027 3273 1390 8560 A
-                        </t>
+                        <t t-if="o.currency_id.name == 'EUR'">CH69 0027 3273 1390 8560 A</t>
                         <!-- USD -->
-                        <t t-if="o.currency_id.name == 'USD'">
-                            <span class="label">IBAN No. : </span>CH030027327313908561V
-                        </t>
+                        <t t-if="o.currency_id.name == 'USD'">CH030027327313908561V</t>
                         <!-- CHF -->
-                        <t t-if="o.currency_id.name == 'CHF'">
-                            <span class="label">IBAN No. : </span>CH460027327313908501J
-                        </t>
+                        <t t-if="o.currency_id.name == 'CHF'">CH460027327313908501J</t>
                     </div>
                     <div style="margin-left: 30px; margin-bottom: 3px;">
                         UBS - Zug branch - Switzerland
