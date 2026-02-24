@@ -60,6 +60,11 @@ class AccountMove(models.Model):
                         _logger.warning("KLF_DROPSHIP: Move Dest from customer default: %s",
                                      partner.x_studio_default_destination_port)
                         move.x_studio_port_of_destination = partner.x_studio_default_destination_port
+                    # Destination country from customer country
+                    if not move.x_studio_destination_country and partner.country_id:
+                        _logger.warning("KLF_DROPSHIP: Move Destination Country from customer: %s",
+                                     partner.country_id.name)
+                        move.x_studio_destination_country = partner.country_id.id
                 # Incoterm from SO
                 if not move.invoice_incoterm_id and sale_orders[0].incoterm:
                     _logger.warning("KLF_DROPSHIP: Move Incoterm from SO: %s",
