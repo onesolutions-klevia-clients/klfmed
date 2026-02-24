@@ -368,9 +368,10 @@
                     </table>
                 </div>
 
-                <!-- Origin -->
-                <div t-if="o.x_studio_origin" style="margin-top: 15px; font-size: 9pt;">
-                    <strong>Origin:</strong> <span t-field="o.x_studio_origin"/>
+                <!-- Origin (from related Sale Order) -->
+                <t t-set="related_so" t-value="o.invoice_line_ids.sale_line_ids.order_id[:1]"/>
+                <div t-if="related_so and related_so.x_studio_origin" style="margin-top: 15px; font-size: 9pt;">
+                    <strong>Origin:</strong> <span t-esc="related_so.x_studio_origin"/>
                 </div>
 
                 <!-- Payment Terms -->
