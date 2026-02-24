@@ -126,8 +126,8 @@
                     text-align: right;
                 }
                 .klfmed-invoice .total-line {
-                    border-top: 2px solid #333 !important;
-                    border-bottom: 2px solid #333 !important;
+                    border-top: none !important;
+                    border-bottom: 3px double #333 !important;
                 }
                 .klfmed-invoice .total-line td {
                     padding: 8px 6px;
@@ -278,10 +278,10 @@
                                 </td>
                                 <td><span t-if="line.x_studio_po_no_ref" t-field="line.x_studio_po_no_ref"/></td>
                                 <td class="text-right">
-                                    <span t-field="line.price_unit" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                    <span t-esc="'{:,.4f}'.format(line.price_unit)"/>
                                 </td>
                                 <td class="text-right">
-                                    <span t-field="line.price_subtotal" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                    <span t-esc="'{:,.2f}'.format(line.price_subtotal)"/>
                                 </td>
                             </tr>
                         </t>
@@ -294,7 +294,7 @@
                         <td style="width: 76%;"></td>
                         <td>TOTAL</td>
                         <td class="text-right">
-                            <span t-field="o.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                            <span t-esc="'{:,.2f}'.format(o.amount_total)"/>
                         </td>
                     </tr>
                 </table>
