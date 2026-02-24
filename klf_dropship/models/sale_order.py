@@ -16,7 +16,6 @@ class SaleOrder(models.Model):
         """
         for order in self:
             if order.partner_id and order.partner_id.x_studio_default_incoterm:
-                order.incoterm_id = order.partner_id.x_studio_default_incoterm
-                _logger.warning("KLF_DROPSHIP: SO %s set incoterm = %s from customer %s",
-                             order.name, order.partner_id.x_studio_default_incoterm.code,
-                             order.partner_id.name)
+                order.incoterm = order.partner_id.x_studio_default_incoterm
+                _logger.warning("KLF_DROPSHIP: SO %s set incoterm from customer %s",
+                             order.name, order.partner_id.name)

@@ -51,13 +51,20 @@ class AccountMove(models.Model):
             _logger.warning("KLF_DROPSHIP: AccountMove %s has %d related pickings, %d SOs",
                          move.name, len(pickings), len(sale_orders))
 
-            # Source port of destination from customer default (via SO partner)
-            if not move.x_studio_port_of_destination and sale_orders:
+            # Source defaults from customer (via SO partner)
+            if sale_orders:
                 partner = sale_orders[0].partner_id
-                if partner and partner.x_studio_default_destination_port:
-                    _logger.warning("KLF_DROPSHIP: Move Dest from customer default: %s",
-                                 partner.x_studio_default_destination_port)
-                    move.x_studio_port_of_destination = partner.x_studio_default_destination_port
+                if partner:
+                    # Port of destination from customer default
+                    if not move.x_studio_port_of_destination and partner.x_studio_default_destination_port:
+                        _logger.warning("KLF_DROPSHIP: Move Dest from customer default: %s",
+                                     partner.x_studio_default_destination_port)
+                        move.x_studio_port_of_destination = partner.x_studio_default_destination_port
+                # Incoterm from SO
+                if not move.invoice_incoterm_id and sale_orders[0].incoterm:
+                    _logger.warning("KLF_DROPSHIP: Move Incoterm from SO: %s",
+                                 sale_orders[0].incoterm.code)
+                    move.invoice_incoterm_id = sale_orders[0].incoterm
 
             # Get data from pickings
             for picking in pickings:
