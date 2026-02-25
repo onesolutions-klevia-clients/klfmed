@@ -12,6 +12,14 @@ class AccountMove(models.Model):
             move._populate_from_picking()
         return moves
 
+    def write(self, vals):
+        """Re-populate logistics fields when invoice lines are modified."""
+        res = super().write(vals)
+        if 'invoice_line_ids' in vals or 'line_ids' in vals:
+            for move in self:
+                move._populate_from_picking()
+        return res
+
     def _populate_from_picking(self):
         """
         Populate logistics fields from related stock picking and customer defaults.
@@ -139,7 +147,7 @@ class AccountMoveLine(models.Model):
                 continue
 
             # Get customer's pricelist
-            pricelist = partner.property_product_pricelist
+            pricelist = getattr(partner, 'property_product_pricelist', None) or getattr(partner, 'pricelist_id', None)
 
             if pricelist:
                 # Calculate price from pricelist using SO-identical logic
@@ -153,8 +161,8 @@ class AccountMoveLine(models.Model):
                 # Fallback: use product's standard sales price
                 price = line.product_id.lst_price
 
-            # Apply the calculated price
-            line.price_unit = price
+            # Apply the calculated price (with context to avoid marking as manual edit)
+            line.with_context(from_pricelist_calculation=True).price_unit = price
 
     @api.onchange('product_id')
     def _onchange_product_id_apply_pricelist(self):

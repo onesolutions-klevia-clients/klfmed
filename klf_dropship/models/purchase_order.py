@@ -33,21 +33,19 @@ class PurchaseOrderLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """
-        Auto-populate x_studio_po_no from the purchase order origin field.
-        Links the PO line back to the original Sales Order.
+        Auto-populate fields from the related Sales Order for lines
+        created after the PO (e.g. lines added manually later).
+        The initial lines are already handled by PurchaseOrder.create.
         """
         lines = super().create(vals_list)
         for line in lines:
-            if line.order_id and line.order_id.origin:
-                # Find the sale order matching the origin
+            if not line.x_studio_po_no and line.order_id and line.order_id.origin:
                 sale_order = self.env['sale.order'].search([
                     ('name', '=', line.order_id.origin)
                 ], limit=1)
-                if sale_order:
-                    po_number = sale_order.x_studio_purchase_order_number
-                    if po_number:
-                        line.x_studio_po_no = po_number
-                    # Propagate delivery date from SO line to PO line
-                    if line.sale_line_id and line.sale_line_id.x_studio_delivery_date:
-                        line.x_studio_delivery_date = line.sale_line_id.x_studio_delivery_date
+                if sale_order and sale_order.x_studio_purchase_order_number:
+                    line.x_studio_po_no = sale_order.x_studio_purchase_order_number
+            # Propagate delivery date from SO line to PO line
+            if not line.x_studio_delivery_date and line.sale_line_id and line.sale_line_id.x_studio_delivery_date:
+                line.x_studio_delivery_date = line.sale_line_id.x_studio_delivery_date
         return lines
