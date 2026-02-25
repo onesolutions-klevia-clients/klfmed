@@ -246,7 +246,7 @@
                                 <span class="label">Date : </span>
                                 <span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
                                 <br/>
-                                <span class="label">Yr/order no.: </span><span t-if="o.x_studio_yr_order_no" t-field="o.x_studio_yr_order_no"/><br/>
+                                <span class="label">Yr/order no.: </span><span t-esc="', '.join(set(line.x_studio_po_no_ref for line in o.invoice_line_ids.filtered(lambda l: l.display_type == False) if l.x_studio_po_no_ref))"/><br/>
                             </td>
                         </tr>
                     </table>
