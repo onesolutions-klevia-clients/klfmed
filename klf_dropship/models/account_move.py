@@ -50,17 +50,17 @@ class AccountMove(models.Model):
                         if so:
                             sale_orders |= so
 
-            # Source defaults from customer (via SO partner)
+            # Source defaults from customer (via SO partner, fallback to invoice partner)
+            partner = sale_orders[0].partner_id if sale_orders else move.partner_id
+            if partner:
+                # Port of destination from customer default
+                if not move.x_studio_port_of_destination and partner.x_studio_default_destination_port:
+                    move.x_studio_port_of_destination = partner.x_studio_default_destination_port
+                # Destination country from customer country
+                if not move.x_studio_destination_country and partner.country_id:
+                    move.x_studio_destination_country = partner.country_id.id
+            # Incoterm from SO
             if sale_orders:
-                partner = sale_orders[0].partner_id
-                if partner:
-                    # Port of destination from customer default
-                    if not move.x_studio_port_of_destination and partner.x_studio_default_destination_port:
-                        move.x_studio_port_of_destination = partner.x_studio_default_destination_port
-                    # Destination country from customer country
-                    if not move.x_studio_destination_country and partner.country_id:
-                        move.x_studio_destination_country = partner.country_id.id
-                # Incoterm from SO
                 if not move.invoice_incoterm_id and sale_orders[0].incoterm:
                     move.invoice_incoterm_id = sale_orders[0].incoterm
 
