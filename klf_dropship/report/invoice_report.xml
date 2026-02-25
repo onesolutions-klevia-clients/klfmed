@@ -246,7 +246,7 @@
                                 <span class="label">Date : </span>
                                 <span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
                                 <br/>
-                                <span class="label">Yr/order no.: </span><span t-esc="po_numbers_map.get(o.id, '')"/><br/>
+                                <span class="label">Yr/order no. : </span><span t-esc="po_numbers_map.get(o.id, '')"/><br/>
                             </td>
                         </tr>
                     </table>

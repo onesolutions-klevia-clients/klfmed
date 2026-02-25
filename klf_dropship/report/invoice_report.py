@@ -29,12 +29,17 @@ class KlfmedInvoiceReport(models.AbstractModel):
         # Pre-compute unique PO numbers per invoice for the template
         po_numbers_map = {}
         for move in docs:
+            _logger.info('PO_MAP DEBUG move %s: invoice_line_ids count=%s', move.id, len(move.invoice_line_ids))
+            for line in move.invoice_line_ids:
+                _logger.info('PO_MAP DEBUG line %s: display_type=%s, x_studio_po_no_ref=%s',
+                             line.id, line.display_type, line.x_studio_po_no_ref)
             po_numbers = list(dict.fromkeys(
                 line.x_studio_po_no_ref
                 for line in move.invoice_line_ids
                 if not line.display_type and line.x_studio_po_no_ref
             ))
             po_numbers_map[move.id] = ', '.join(po_numbers)
+            _logger.info('PO_MAP DEBUG result for move %s: %s', move.id, po_numbers_map[move.id])
 
         return {
             'doc_ids': docids,
