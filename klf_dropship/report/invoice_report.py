@@ -1,4 +1,8 @@
+import logging
+
 from odoo import api, models
+
+_logger = logging.getLogger(__name__)
 
 
 class KlfmedInvoiceReport(models.AbstractModel):
@@ -8,6 +12,7 @@ class KlfmedInvoiceReport(models.AbstractModel):
     @api.model
     def _get_report_values(self, docids, data=None):
         """Populate logistics fields on invoice lines before rendering the report."""
+        _logger.info('KLFMed Invoice Report: _get_report_values called for docids=%s', docids)
         docs = self.env['account.move'].browse(docids)
 
         for move in docs:
