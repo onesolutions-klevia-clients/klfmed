@@ -36,7 +36,7 @@ class KlfmedInvoiceReport(models.AbstractModel):
             po_numbers = list(dict.fromkeys(
                 line.x_studio_po_no_ref
                 for line in move.invoice_line_ids
-                if not line.display_type and line.x_studio_po_no_ref
+                if line.display_type not in ('line_section', 'line_note') and line.x_studio_po_no_ref
             ))
             po_numbers_map[move.id] = ', '.join(po_numbers)
             _logger.info('PO_MAP DEBUG result for move %s: %s', move.id, po_numbers_map[move.id])
