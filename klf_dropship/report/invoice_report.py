@@ -21,8 +21,19 @@ class KlfmedInvoiceReport(models.AbstractModel):
                 line._populate_po_no()
                 line._populate_delivery_date()
 
+        # Pre-compute unique PO numbers per invoice for the template
+        po_numbers_map = {}
+        for move in docs:
+            po_numbers = list(dict.fromkeys(
+                line.x_studio_po_no_ref
+                for line in move.invoice_line_ids
+                if not line.display_type and line.x_studio_po_no_ref
+            ))
+            po_numbers_map[move.id] = ', '.join(po_numbers)
+
         return {
             'doc_ids': docids,
             'doc_model': 'account.move',
             'docs': docs,
+            'po_numbers_map': po_numbers_map,
         }
