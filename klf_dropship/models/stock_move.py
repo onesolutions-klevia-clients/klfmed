@@ -12,6 +12,7 @@ class StockMove(models.Model):
         """
         moves = super().create(vals_list)
         for move in moves:
+            sale_order = None
             # Try to get the sale order from the purchase order origin
             if move.purchase_line_id and move.purchase_line_id.order_id:
                 po = move.purchase_line_id.order_id
@@ -23,6 +24,10 @@ class StockMove(models.Model):
                         po_number = sale_order.x_studio_purchase_order_number
                         if po_number:
                             move.x_studio_po_no = po_number
+                # Copy customer PO number to the delivery (stock.picking)
+                if sale_order and move.picking_id and not move.picking_id.x_studio_customer_po_no:
+                    if sale_order.x_studio_purchase_order_number:
+                        move.picking_id.x_studio_customer_po_no = sale_order.x_studio_purchase_order_number
                 # Propagate delivery date from PO line to stock move
                 if move.purchase_line_id and move.purchase_line_id.x_studio_delivery_date:
                     move.x_studio_delivery_date = move.purchase_line_id.x_studio_delivery_date
