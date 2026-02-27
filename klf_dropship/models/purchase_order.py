@@ -19,6 +19,9 @@ class PurchaseOrder(models.Model):
                 ], limit=1)
                 if sale_order:
                     sale_order.x_studio_supplier_po = order.id
+                    # Copy customer PO number from SO to PO header
+                    if not order.x_studio_customer_po_no and sale_order.x_studio_purchase_order_number:
+                        order.x_studio_customer_po_no = sale_order.x_studio_purchase_order_number
                     # Also update PO lines with the customer PO number from SO header
                     po_number = sale_order.x_studio_purchase_order_number
                     for line in order.order_line:
