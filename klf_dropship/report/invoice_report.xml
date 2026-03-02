@@ -121,6 +121,7 @@
                 .klfmed-invoice .lines-table td {
                     padding: 8px 6px;
                     vertical-align: top;
+                    border-bottom: 1px solid #ccc !important;
                 }
                 .klfmed-invoice .text-right {
                     text-align: right;
@@ -199,7 +200,7 @@
 
                 <!-- Ship-To Section -->
                 <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
-                    <div class="ship-to-section">
+                    <div class="ship-to-section" style="text-align: right;">
                         <div class="ship-to-label">SHIP TO :</div>
                         <span t-field="o.partner_shipping_id.name"/><br/>
                         <t t-if="o.partner_shipping_id.street">
@@ -291,7 +292,10 @@
                 <!-- Total -->
                 <table style="width: 100%; margin-top: 40px; border-collapse: collapse;">
                     <tr class="total-line">
-                        <td style="width: 76%;"></td>
+                        <td style="width: 58%;"></td>
+                        <td class="text-right" style="padding-right: 12px;">
+                            <span t-esc="'{:,.0f}'.format(sum(line.quantity for line in o.invoice_line_ids))"/>
+                        </td>
                         <td>TOTAL</td>
                         <td class="text-right">
                             <span t-esc="'{:,.2f}'.format(o.amount_total)"/>
@@ -305,45 +309,41 @@
                     <strong>Origin :</strong> <span t-esc="related_so.x_studio_origin"/>
                 </div>
 
-                <!-- Payment Terms -->
-                <div class="payment-section">
+                <!-- Payment Terms & Banking Information -->
+                <table style="width: 100%; margin-top: 40px; font-size: 9pt; border-collapse: collapse;">
                     <t t-if="o.invoice_payment_term_id">
-                        <div><strong>TERMS OF PAYMENT :</strong></div>
-                        <div style="margin-left: 30px;">
-                            <span t-field="o.invoice_payment_term_id.name" style="text-transform: uppercase;"/>
-                        </div>
+                        <tr>
+                            <td style="width: 180px; vertical-align: top; padding: 2px 0;"><strong>TERMS OF PAYMENT :</strong></td>
+                            <td style="vertical-align: top; padding: 2px 0;">
+                                <span t-field="o.invoice_payment_term_id.name" style="text-transform: uppercase;"/>
+                            </td>
+                        </tr>
                     </t>
-                </div>
-
-                <!-- Banking Information -->
-                <div class="banking-section">
-                    <div style="margin-bottom: 3px;">
-                        <strong>BENEFICIARY :</strong>
-                    </div>
-                    <div style="margin-left: 30px; margin-bottom: 3px;">
-                        KLFmed Europe GmbH
-                    </div>
-                    <div style="margin-left: 30px; margin-bottom: 3px;">
-                        <span t-esc="o.currency_id.name"/> Bank Account
-                    </div>
-                    <div style="margin-bottom: 3px;">
-                        <strong>IBAN No. :</strong>
-                    </div>
-                    <div style="margin-left: 30px; margin-bottom: 3px;">
-                        <!-- EUR -->
-                        <t t-if="o.currency_id.name == 'EUR'">CH69 0027 3273 1390 8560 A</t>
-                        <!-- USD -->
-                        <t t-if="o.currency_id.name == 'USD'">CH030027327313908561V</t>
-                        <!-- CHF -->
-                        <t t-if="o.currency_id.name == 'CHF'">CH460027327313908501J</t>
-                    </div>
-                    <div style="margin-left: 30px; margin-bottom: 3px;">
-                        UBS - Zug branch - Switzerland
-                    </div>
-                    <div style="margin-left: 30px;">
-                        BIC Swift code : UBSWCHZH80A
-                    </div>
-                </div>
+                    <tr><td colspan="2" style="padding: 8px 0;"></td></tr>
+                    <tr>
+                        <td style="vertical-align: top; padding: 2px 0;"><strong>BENEFICIARY :</strong></td>
+                        <td style="vertical-align: top; padding: 2px 0;">
+                            KLFmed Europe GmbH<br/>
+                            <span t-esc="o.currency_id.name"/> Bank Account
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="vertical-align: top; padding: 2px 0;"><strong>IBAN No. :</strong></td>
+                        <td style="vertical-align: top; padding: 2px 0;">
+                            <t t-if="o.currency_id.name == 'EUR'">CH69 0027 3273 1390 8560 A</t>
+                            <t t-if="o.currency_id.name == 'USD'">CH030027327313908561V</t>
+                            <t t-if="o.currency_id.name == 'CHF'">CH460027327313908501J</t>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 0;"></td>
+                        <td style="padding: 2px 0;">UBS - Zug branch - Switzerland</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 0;"></td>
+                        <td style="padding: 2px 0;">BIC Swift code : UBSWCHZH80A</td>
+                    </tr>
+                </table>
 
                 <!-- Wire Transfer Message -->
                 <div class="wire-message">
