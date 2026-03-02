@@ -294,9 +294,8 @@
                     <tr class="total-line">
                         <td style="width: 8%;"></td>
                         <td style="width: 34%;"></td>
-                        <td style="width: 8%;"></td>
-                        <td style="width: 8%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL QTY</td>
-                        <td style="width: 7%;" class="text-right">
+                        <td colspan="2" style="width: 16%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL QTY</td>
+                        <td style="width: 7%; text-align: right;">
                             <span t-esc="'{:,.0f}'.format(sum(line.quantity for line in o.invoice_line_ids))"/>
                         </td>
                         <td style="width: 9%;"></td>
