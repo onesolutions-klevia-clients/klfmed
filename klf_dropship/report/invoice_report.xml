@@ -292,7 +292,8 @@
                 <!-- Total -->
                 <table style="width: 100%; margin-top: 40px; border-collapse: collapse;">
                     <tr class="total-line">
-                        <td style="width: 58%;"></td>
+                        <td style="width: 50%;"></td>
+                        <td class="text-right" style="font-weight: bold;">TOTAL QTY</td>
                         <td class="text-right" style="padding-right: 12px;">
                             <span t-esc="'{:,.0f}'.format(sum(line.quantity for line in o.invoice_line_ids))"/>
                         </td>
