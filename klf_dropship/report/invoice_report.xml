@@ -10,7 +10,7 @@
         <field name="margin_top">10</field>
         <field name="margin_bottom">10</field>
         <field name="margin_left">12</field>
-        <field name="margin_right">12</field>
+        <field name="margin_right">6</field>
         <field name="header_line" eval="False"/>
         <field name="header_spacing">0</field>
         <field name="dpi">90</field>
@@ -271,7 +271,10 @@
                         <t t-foreach="o.invoice_line_ids" t-as="line">
                             <tr>
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
-                                <td><span t-field="line.name"/></td>
+                                <td>
+                                    <span t-if="line.product_id" t-field="line.product_id.name"/>
+                                    <span t-else="" t-field="line.name"/>
+                                </td>
                                 <td><span t-if="line.x_studio_lot_number" t-field="line.x_studio_lot_number"/></td>
                                 <td><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
                                 <td class="text-right">
