@@ -272,8 +272,12 @@
                             <tr>
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td>
-                                    <span t-if="line.product_id" t-field="line.product_id.name"/>
-                                    <span t-else="" t-field="line.name"/>
+                                    <t t-if="line.product_id and line.product_id.name and line.name">
+                                        <span t-esc="line.name.replace(line.product_id.name, '', 1).strip()"/>
+                                    </t>
+                                    <t t-else="">
+                                        <span t-field="line.name"/>
+                                    </t>
                                 </td>
                                 <td><span t-if="line.x_studio_lot_number" t-field="line.x_studio_lot_number"/></td>
                                 <td><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
