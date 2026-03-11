@@ -258,9 +258,9 @@
                     <thead>
                         <tr>
                             <th style="width: 8%;">Product<br/>Code</th>
-                            <th style="width: 34%;">Description</th>
+                            <th style="width: 32%;">Description</th>
                             <th style="width: 8%;">Lot No.</th>
-                            <th style="width: 8%;">Expiration<br/>Date</th>
+                            <th style="width: 10%;">Expiration<br/>Date</th>
                             <th style="width: 7%;" class="text-right">Quantity<br/>(Units)</th>
                             <th style="width: 9%;">PO no.</th>
                             <th style="width: 11%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
