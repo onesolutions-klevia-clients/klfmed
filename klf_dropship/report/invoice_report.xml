@@ -272,8 +272,9 @@
                             <tr>
                                 <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td>
-                                    <t t-if="line.product_id and line.product_id.name and line.name">
-                                        <span t-esc="line.name.replace(line.product_id.name, '', 1).strip()"/>
+                                    <t t-if="line.product_id and line.product_id.default_code">
+                                        [<t t-esc="line.product_id.default_code"/>]
+                                        <t t-if="line.product_id.description_sale" t-esc="line.product_id.description_sale"/>
                                     </t>
                                     <t t-else="">
                                         <span t-field="line.name"/>
