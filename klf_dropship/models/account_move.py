@@ -1,6 +1,6 @@
 import logging
 
-from odoo import models, api
+from odoo import models, api, fields
 
 _logger = logging.getLogger(__name__)
 
@@ -277,6 +277,7 @@ class AccountMoveLine(models.Model):
         Populate x_studio_expiration_date from related stock move lines (lot expiration date).
         Traverses: invoice line → sale/purchase line → stock.move → stock.move.line → lot_id.expiration_date
         """
+        user_tz = self.env.user.tz or 'UTC'
         for line in self:
             if line.x_studio_expiration_date:
                 continue
@@ -289,7 +290,7 @@ class AccountMoveLine(models.Model):
                     for move in sale_line.move_ids:
                         for move_line in move.move_line_ids:
                             if move_line.lot_id and move_line.lot_id.expiration_date:
-                                exp_date = move_line.lot_id.expiration_date.date() if hasattr(move_line.lot_id.expiration_date, 'date') else move_line.lot_id.expiration_date
+                                exp_date = fields.Datetime.context_timestamp(line.with_context(tz=user_tz), move_line.lot_id.expiration_date).date() if hasattr(move_line.lot_id.expiration_date, 'date') else move_line.lot_id.expiration_date
                                 if exp_date not in expiration_dates:
                                     expiration_dates.append(exp_date)
 
@@ -298,7 +299,7 @@ class AccountMoveLine(models.Model):
                 for move in line.purchase_line_id.move_ids:
                     for move_line in move.move_line_ids:
                         if move_line.lot_id and move_line.lot_id.expiration_date:
-                            exp_date = move_line.lot_id.expiration_date.date() if hasattr(move_line.lot_id.expiration_date, 'date') else move_line.lot_id.expiration_date
+                            exp_date = fields.Datetime.context_timestamp(line.with_context(tz=user_tz), move_line.lot_id.expiration_date).date() if hasattr(move_line.lot_id.expiration_date, 'date') else move_line.lot_id.expiration_date
                             if exp_date not in expiration_dates:
                                 expiration_dates.append(exp_date)
 
