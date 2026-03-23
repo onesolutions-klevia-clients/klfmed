@@ -73,7 +73,7 @@
                 .klfmed-invoice .customer-info {
                     font-size: 9pt;
                     line-height: 1.6;
-                    text-align: right;
+                    text-align: left;
                 }
                 .klfmed-invoice .customer-name {
                     font-size: 10pt;
@@ -87,11 +87,12 @@
                 .klfmed-invoice .ship-to-section {
                     font-size: 9pt;
                     line-height: 1.5;
-                    margin-bottom: 15px;
+                    margin: 0;
+                    padding: 0;
+                    text-align: left;
                 }
                 .klfmed-invoice .ship-to-label {
                     font-weight: bold;
-                    margin-bottom: 5px;
                 }
                 .klfmed-invoice .info-section {
                     font-size: 9pt;
@@ -171,7 +172,7 @@
                                 <span t-field="o.company_id.zip"/> <span t-field="o.company_id.city"/> - <span t-field="o.company_id.country_id.name"/><br/>
                                 <br/>
                                 <span t-if="o.company_id.phone">Tel. <span t-field="o.company_id.phone"/><br/></span>
-                                Registration number: <span t-if="o.company_id.company_registry" t-field="o.company_id.company_registry"/>
+                                Registration number: <span t-if="o.company_id.vat" t-field="o.company_id.vat"/>
                             </div>
                         </td>
                         <!-- Customer Info (Right) -->
@@ -195,35 +196,43 @@
                     </tr>
                 </table>
 
-                <!-- Document Title -->
-                <div class="document-title">COMMERCIAL INVOICE</div>
-
-                <!-- Ship-To Section -->
-                <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
-                    <div class="ship-to-section" style="text-align: right;">
-                        <div class="ship-to-label">SHIP TO :</div>
-                        <span t-field="o.partner_shipping_id.name"/><br/>
-                        <t t-if="o.partner_shipping_id.street">
-                            <span t-field="o.partner_shipping_id.street"/><br/>
-                        </t>
-                        <t t-if="o.partner_shipping_id.street2">
-                            <span t-field="o.partner_shipping_id.street2"/><br/>
-                        </t>
-                        <t t-if="o.partner_shipping_id.city">
-                            <span t-field="o.partner_shipping_id.city"/>
-                            <t t-if="o.partner_shipping_id.zip"> <span t-field="o.partner_shipping_id.zip"/></t>
-                            <br/>
-                        </t>
-                        <span t-field="o.partner_shipping_id.country_id.name"/>
-                    </div>
-                </t>
+                <!-- Document Title + Ship-To Section -->
+                <table style="width: 100%; margin-bottom: 10px;">
+                    <tr>
+                        <td style="width: 55%; vertical-align: top;">
+                            <div class="document-title" style="margin-bottom: 0;">COMMERCIAL INVOICE</div>
+                        </td>
+                        <td style="width: 45%; vertical-align: top;">
+                            <t t-if="o.partner_shipping_id and o.partner_shipping_id != o.partner_id">
+                                <div class="ship-to-section">
+                                    <span class="ship-to-label">SHIP TO :</span><br/>
+                                    <t t-if="o.partner_shipping_id.name">
+                                        <span t-field="o.partner_shipping_id.name"/><br/>
+                                    </t>
+                                    <t t-if="o.partner_shipping_id.street">
+                                        <span t-field="o.partner_shipping_id.street"/><br/>
+                                    </t>
+                                    <t t-if="o.partner_shipping_id.street2">
+                                        <span t-field="o.partner_shipping_id.street2"/><br/>
+                                    </t>
+                                    <t t-if="o.partner_shipping_id.city">
+                                        <span t-field="o.partner_shipping_id.city"/>
+                                        <t t-if="o.partner_shipping_id.zip"> <span t-field="o.partner_shipping_id.zip"/></t>
+                                        <br/>
+                                    </t>
+                                    <span t-field="o.partner_shipping_id.country_id.name"/>
+                                </div>
+                            </t>
+                        </td>
+                    </tr>
+                </table>
 
                 <!-- Shipment & Invoice Info -->
                 <div class="info-section">
                     <table style="width: 100%;">
                         <tr>
                             <!-- Shipment Info (Left) -->
-                            <td style="width: 50%; vertical-align: top;">
+                            <td style="width: 55%; vertical-align: top;">
                                 <t t-if="o.x_studio_port_of_loading">
                                     <span class="label">Loading : </span><span t-field="o.x_studio_port_of_loading"/><br/>
                                 </t>
@@ -238,7 +247,7 @@
                                 </t>
                             </td>
                             <!-- Invoice Info (Right) -->
-                            <td style="width: 50%; vertical-align: top;">
+                            <td style="width: 45%; vertical-align: top; text-align: left;">
                                 <span class="label">Invoice number : </span>
                                 <span t-if="o.x_studio_invoice_number" t-field="o.x_studio_invoice_number"/>
                                 <span t-elif="o.name and o.name != '/'" t-field="o.name"/>
