@@ -242,12 +242,6 @@ class AccountMoveLine(models.Model):
         Sources from x_studio_purchase_order_number on the SO header.
         """
         for line in self:
-            _logger.info(
-                'PO_NO DEBUG line %s (product=%s): x_studio_po_no_ref=%s, sale_line_ids=%s, purchase_line_id=%s',
-                line.id, line.product_id.name, line.x_studio_po_no_ref,
-                line.sale_line_ids.ids, line.purchase_line_id.id if line.purchase_line_id else False
-            )
-
             if line.x_studio_po_no_ref:
                 continue
 
@@ -256,8 +250,6 @@ class AccountMoveLine(models.Model):
             # Try from sale line
             if line.sale_line_ids:
                 sale_order = line.sale_line_ids[0].order_id
-                _logger.info('PO_NO DEBUG: found SO %s from sale_line, x_studio_purchase_order_number=%s',
-                             sale_order.name, sale_order.x_studio_purchase_order_number)
 
             # Try from purchase line
             elif line.purchase_line_id and line.purchase_line_id.order_id.origin:
@@ -265,9 +257,12 @@ class AccountMoveLine(models.Model):
                 sale_order = self.env['sale.order'].search([
                     ('name', '=', origin)
                 ], limit=1)
-                _logger.info('PO_NO DEBUG: searched SO by origin=%s, found=%s, x_studio_purchase_order_number=%s',
-                             origin, sale_order.name if sale_order else None,
-                             sale_order.x_studio_purchase_order_number if sale_order else None)
+
+            # Fallback: try from invoice origin (SO name on the invoice header)
+            if not sale_order and line.move_id.invoice_origin:
+                sale_order = self.env['sale.order'].search([
+                    ('name', '=', line.move_id.invoice_origin)
+                ], limit=1)
 
             if sale_order and sale_order.x_studio_purchase_order_number:
                 line.x_studio_po_no_ref = sale_order.x_studio_purchase_order_number
