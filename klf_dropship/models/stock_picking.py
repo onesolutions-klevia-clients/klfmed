@@ -18,13 +18,13 @@ class StockPicking(models.Model):
 
     def _auto_invoice_dropship(self):
         """
-        Auto-create or update a draft invoice when a dropship is confirmed.
+        Auto-create or update a draft customer invoice and vendor bill when a dropship is confirmed.
 
         Business rules:
         - Match key: Sales Order ID + Invoice Number (x_studio_invoice_number)
-        - If a draft invoice exists for the same key, append lines to it
-        - If no draft invoice exists (or all are posted/cancelled), create a new one
-        - Invoice remains in draft for manual validation
+        - If a draft invoice/bill exists for the same key, append lines to it
+        - If no draft exists (or all are posted/cancelled), create a new one
+        - Documents remain in draft for manual validation
         """
         self.ensure_one()
 
@@ -38,9 +38,8 @@ class StockPicking(models.Model):
 
         invoice_number = self.x_studio_invoice_number or ''
 
-        # Search for an existing draft invoice matching SO + invoice number
+        # --- Customer invoice (out_invoice) ---
         draft_invoice = self._find_draft_invoice(sale_order, invoice_number)
-
         if draft_invoice:
             _logger.info(
                 'Dropship %s: appending lines to existing draft invoice %s',
@@ -53,6 +52,129 @@ class StockPicking(models.Model):
                 self.name, sale_order.name
             )
             self._create_draft_invoice(sale_order, invoice_number)
+
+        # --- Vendor bill (in_invoice) ---
+        purchase_order = self._get_dropship_purchase_order()
+        if not purchase_order:
+            _logger.warning(
+                'Dropship %s: no related Purchase Order found, skipping vendor bill.',
+                self.name
+            )
+            return
+
+        draft_bill = self._find_draft_vendor_bill(purchase_order, invoice_number)
+        if draft_bill:
+            _logger.info(
+                'Dropship %s: appending lines to existing draft vendor bill %s',
+                self.name, draft_bill.name
+            )
+            self._append_vendor_bill_lines(draft_bill)
+        else:
+            _logger.info(
+                'Dropship %s: creating new draft vendor bill for PO %s',
+                self.name, purchase_order.name
+            )
+            self._create_draft_vendor_bill(purchase_order, invoice_number)
+
+    def _get_dropship_purchase_order(self):
+        """Retrieve the Purchase Order linked to this dropship picking."""
+        self.ensure_one()
+        for move in self.move_ids:
+            if move.purchase_line_id and move.purchase_line_id.order_id:
+                return move.purchase_line_id.order_id
+        return None
+
+    def _find_draft_vendor_bill(self, purchase_order, invoice_number):
+        """
+        Search for an existing draft vendor bill matching the PO + invoice number.
+        Returns the draft bill if found, or None.
+        """
+        domain = [
+            ('state', '=', 'draft'),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_origin', '=', purchase_order.name),
+            ('x_studio_invoice_number', '=', invoice_number),
+        ]
+        return self.env['account.move'].search(domain, limit=1) or None
+
+    def _create_draft_vendor_bill(self, purchase_order, invoice_number):
+        """Create a new draft vendor bill with lines from this dropship."""
+        bill_vals = {
+            'move_type': 'in_invoice',
+            'partner_id': purchase_order.partner_id.id,
+            'invoice_origin': purchase_order.name,
+            'x_studio_invoice_number': invoice_number,
+            'currency_id': purchase_order.currency_id.id,
+            'invoice_line_ids': self._prepare_vendor_bill_lines(purchase_order),
+        }
+        bill = self.env['account.move'].create(bill_vals)
+        _logger.info(
+            'Dropship %s: created draft vendor bill %s',
+            self.name, bill.name
+        )
+        return bill
+
+    def _append_vendor_bill_lines(self, bill):
+        """Append new lines to an existing draft vendor bill without modifying existing lines."""
+        new_lines = self._prepare_vendor_bill_lines()
+        if new_lines:
+            bill.write({'invoice_line_ids': new_lines})
+
+    def _prepare_vendor_bill_lines(self):
+        """
+        Prepare vendor bill line values from the dropship picking moves.
+        One bill line is created per lot number (stock.move.line).
+        If no lots are tracked, falls back to one line per move.
+        """
+        lines = []
+        for move in self.move_ids:
+            if move.state == 'cancel':
+                continue
+
+            purchase_line = move.purchase_line_id
+            price_unit = purchase_line.price_unit if purchase_line else move.product_id.standard_price
+
+            common_vals = {
+                'product_id': move.product_id.id,
+                'price_unit': price_unit,
+                'name': move.description_picking or move.product_id.display_name,
+            }
+            if purchase_line and purchase_line.taxes_id:
+                common_vals['tax_ids'] = [(6, 0, purchase_line.taxes_id.ids)]
+            if move.x_studio_po_no:
+                common_vals['x_studio_po_no_ref'] = move.x_studio_po_no
+            if move.x_studio_delivery_date:
+                common_vals['x_studio_delivery_date'] = move.x_studio_delivery_date
+            if purchase_line:
+                common_vals['purchase_line_id'] = purchase_line.id
+
+            # Group qty_done by lot
+            lot_quantities = {}
+            for move_line in move.move_line_ids:
+                if move_line.qty_done <= 0:
+                    continue
+                key = move_line.lot_id.id if move_line.lot_id else False
+                if key not in lot_quantities:
+                    lot_quantities[key] = {'qty': 0.0, 'lot': move_line.lot_id}
+                lot_quantities[key]['qty'] += move_line.qty_done
+
+            if lot_quantities:
+                for entry in lot_quantities.values():
+                    line_vals = dict(common_vals)
+                    line_vals['quantity'] = entry['qty']
+                    lot = entry['lot']
+                    if lot:
+                        line_vals['x_studio_lot_number'] = lot.name
+                        if lot.expiration_date:
+                            exp_date = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
+                            line_vals['x_studio_expiration_date'] = exp_date
+                    lines.append((0, 0, line_vals))
+            else:
+                line_vals = dict(common_vals)
+                line_vals['quantity'] = move.quantity
+                lines.append((0, 0, line_vals))
+
+        return lines
 
     def _get_dropship_sale_order(self):
         """Retrieve the Sales Order linked to this dropship picking."""
