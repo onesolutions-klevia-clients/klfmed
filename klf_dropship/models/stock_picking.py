@@ -139,8 +139,8 @@ class StockPicking(models.Model):
                 'price_unit': price_unit,
                 'name': move.description_picking or move.product_id.display_name,
             }
-            if purchase_line and purchase_line.taxes_id:
-                common_vals['tax_ids'] = [(6, 0, purchase_line.taxes_id.ids)]
+            if purchase_line and purchase_line.tax_ids:
+                common_vals['tax_ids'] = [(6, 0, purchase_line.tax_ids.ids)]
             if move.x_studio_po_no:
                 common_vals['x_studio_po_no_ref'] = move.x_studio_po_no
             if move.x_studio_delivery_date:
