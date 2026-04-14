@@ -105,7 +105,7 @@ class StockPicking(models.Model):
             'invoice_origin': purchase_order.name,
             'x_studio_invoice_number': invoice_number,
             'currency_id': purchase_order.currency_id.id,
-            'invoice_line_ids': self._prepare_vendor_bill_lines(purchase_order),
+            'invoice_line_ids': self._prepare_vendor_bill_lines(),
         }
         bill = self.env['account.move'].create(bill_vals)
         _logger.info(
