@@ -86,13 +86,16 @@ class StockPicking(models.Model):
 
     def _find_draft_vendor_bill(self, purchase_order, invoice_number):
         """
-        Search for an existing draft vendor bill matching the PO + invoice number.
+        Search for an existing draft vendor bill matching the invoice number.
+        The match key is invoice number only (not PO name), so that multiple
+        dropships with the same invoice number consolidate into a single bill.
         Returns the draft bill if found, or None.
         """
+        if not invoice_number:
+            return None
         domain = [
             ('state', '=', 'draft'),
             ('move_type', '=', 'in_invoice'),
-            ('invoice_origin', '=', purchase_order.name),
             ('x_studio_invoice_number', '=', invoice_number),
         ]
         return self.env['account.move'].search(domain, limit=1) or None
