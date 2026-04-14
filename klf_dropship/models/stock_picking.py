@@ -278,6 +278,10 @@ class StockPicking(models.Model):
                     lot_quantities[key] = {'qty': 0.0, 'lot': move_line.lot_id}
                 lot_quantities[key]['qty'] += move_line.qty_done
 
+            # If there are lot-specific lines alongside a no-lot aggregate line, drop the aggregate
+            if False in lot_quantities and len(lot_quantities) > 1:
+                del lot_quantities[False]
+
             if lot_quantities:
                 # One invoice line per lot
                 for entry in lot_quantities.values():
@@ -290,17 +294,11 @@ class StockPicking(models.Model):
                             exp_date = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
                             line_vals['x_studio_expiration_date'] = exp_date
                     lines.append((0, 0, line_vals))
-            elif move.quantity > 0 and not any(ml.qty_done > 0 for ml in move.move_line_ids):
-                # Fallback: product without lot tracking, only if no sibling move covers it with lots
-                sibling_has_lots = any(
-                    ml.qty_done > 0 and other.product_id == move.product_id
-                    for other in self.move_ids if other != move
-                    for ml in other.move_line_ids
-                )
-                if not sibling_has_lots:
-                    line_vals = dict(common_vals)
-                    line_vals['quantity'] = move.quantity
-                    lines.append((0, 0, line_vals))
+            elif move.quantity > 0:
+                # Fallback: product without lot tracking
+                line_vals = dict(common_vals)
+                line_vals['quantity'] = move.quantity
+                lines.append((0, 0, line_vals))
 
         return lines
 
