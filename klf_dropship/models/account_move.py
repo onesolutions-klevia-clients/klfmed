@@ -117,33 +117,47 @@ class AccountMove(models.Model):
                 if lot_field and ',' not in lot_field:
                     continue
 
-                # Collect lot quantities from linked done stock moves
+                # Collect lot quantities from linked stock moves.
+                # Use qty_done if the picking is validated, reserved qty otherwise
+                # (covers both "ordered qty" invoicing policy and pre-assigned lots).
                 lot_quantities = {}
 
                 if line.sale_line_ids:
                     for sale_line in line.sale_line_ids:
                         for move in sale_line.move_ids:
-                            if move.state != 'done':
+                            if move.state == 'cancel':
                                 continue
                             for ml in move.move_line_ids:
-                                if ml.qty_done <= 0:
+                                if not ml.lot_id:
                                     continue
-                                key = ml.lot_id.id if ml.lot_id else False
+                                qty = ml.qty_done or (
+                                    getattr(ml, 'reserved_uom_qty', 0.0)
+                                    or getattr(ml, 'product_uom_qty', 0.0)
+                                )
+                                if qty <= 0:
+                                    continue
+                                key = ml.lot_id.id
                                 if key not in lot_quantities:
                                     lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
-                                lot_quantities[key]['qty'] += ml.qty_done
+                                lot_quantities[key]['qty'] += qty
 
                 elif line.purchase_line_id:
                     for move in line.purchase_line_id.move_ids:
-                        if move.state != 'done':
+                        if move.state == 'cancel':
                             continue
                         for ml in move.move_line_ids:
-                            if ml.qty_done <= 0:
+                            if not ml.lot_id:
                                 continue
-                            key = ml.lot_id.id if ml.lot_id else False
+                            qty = ml.qty_done or (
+                                getattr(ml, 'reserved_uom_qty', 0.0)
+                                or getattr(ml, 'product_uom_qty', 0.0)
+                            )
+                            if qty <= 0:
+                                continue
+                            key = ml.lot_id.id
                             if key not in lot_quantities:
                                 lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
-                            lot_quantities[key]['qty'] += ml.qty_done
+                            lot_quantities[key]['qty'] += qty
 
                 # Drop the no-lot aggregate entry if lot-specific entries exist
                 if False in lot_quantities and len(lot_quantities) > 1:

@@ -155,10 +155,18 @@ class StockPicking(models.Model):
                             line_vals['x_studio_expiration_date'] = exp_date
                     lines.append((0, 0, line_vals))
             elif move.quantity > 0:
-                # Fallback: product without lot tracking
-                line_vals = dict(common_vals)
-                line_vals['quantity'] = move.quantity
-                lines.append((0, 0, line_vals))
+                # Fallback: only if no sibling move for the same product has qty_done
+                # (avoids duplicate aggregate lines when Odoo creates multiple moves per product)
+                sibling_has_done = any(
+                    other.product_id == move.product_id
+                    and any(ml.qty_done > 0 for ml in other.move_line_ids)
+                    for other in self.move_ids
+                    if other != move
+                )
+                if not sibling_has_done:
+                    line_vals = dict(common_vals)
+                    line_vals['quantity'] = move.quantity
+                    lines.append((0, 0, line_vals))
 
         return lines
 
@@ -273,10 +281,18 @@ class StockPicking(models.Model):
                             line_vals['x_studio_expiration_date'] = exp_date
                     lines.append((0, 0, line_vals))
             elif move.quantity > 0:
-                # Fallback: product without lot tracking
-                line_vals = dict(common_vals)
-                line_vals['quantity'] = move.quantity
-                lines.append((0, 0, line_vals))
+                # Fallback: only if no sibling move for the same product has qty_done
+                # (avoids duplicate aggregate lines when Odoo creates multiple moves per product)
+                sibling_has_done = any(
+                    other.product_id == move.product_id
+                    and any(ml.qty_done > 0 for ml in other.move_line_ids)
+                    for other in self.move_ids
+                    if other != move
+                )
+                if not sibling_has_done:
+                    line_vals = dict(common_vals)
+                    line_vals['quantity'] = move.quantity
+                    lines.append((0, 0, line_vals))
 
         return lines
 
