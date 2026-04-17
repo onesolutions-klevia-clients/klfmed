@@ -18,13 +18,14 @@ class StockPicking(models.Model):
 
     def _auto_invoice_dropship(self):
         """
-        Auto-create or update a draft customer invoice and vendor bill when a dropship is confirmed.
+        Auto-create or update a draft customer invoice when a dropship is confirmed.
 
         Business rules:
         - Match key: Sales Order ID + Invoice Number (x_studio_invoice_number)
-        - If a draft invoice/bill exists for the same key, append lines to it
+        - If a draft invoice exists for the same key, append lines to it
         - If no draft exists (or all are posted/cancelled), create a new one
-        - Documents remain in draft for manual validation
+        - Document remains in draft for manual validation
+        - Vendor bills are NOT auto-created; they must be created manually from the PO.
         """
         self.ensure_one()
 
@@ -52,29 +53,6 @@ class StockPicking(models.Model):
                 self.name, sale_order.name
             )
             self._create_draft_invoice(sale_order, invoice_number)
-
-        # --- Vendor bill (in_invoice) ---
-        purchase_order = self._get_dropship_purchase_order()
-        if not purchase_order:
-            _logger.warning(
-                'Dropship %s: no related Purchase Order found, skipping vendor bill.',
-                self.name
-            )
-            return
-
-        draft_bill = self._find_draft_vendor_bill(purchase_order, invoice_number)
-        if draft_bill:
-            _logger.info(
-                'Dropship %s: appending lines to existing draft vendor bill %s',
-                self.name, draft_bill.name
-            )
-            self._append_vendor_bill_lines(draft_bill)
-        else:
-            _logger.info(
-                'Dropship %s: creating new draft vendor bill for PO %s',
-                self.name, purchase_order.name
-            )
-            self._create_draft_vendor_bill(purchase_order, invoice_number)
 
     def _get_dropship_purchase_order(self):
         """Retrieve the Purchase Order linked to this dropship picking."""
