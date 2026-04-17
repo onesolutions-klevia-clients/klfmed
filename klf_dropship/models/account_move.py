@@ -120,7 +120,7 @@ class AccountMove(models.Model):
             _logger.info('_split_lines_by_lot: found %d lines via direct search', len(lines))
 
             for line in lines:
-                if line.display_type:
+                if line.display_type not in (False, 'product'):
                     continue
 
                 lot_field = line.x_studio_lot_number or ''
