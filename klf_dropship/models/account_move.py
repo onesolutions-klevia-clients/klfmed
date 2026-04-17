@@ -10,18 +10,22 @@ class AccountMove(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Auto-populate logistics fields from related stock picking."""
+        """Auto-populate logistics fields and split lot lines after creation."""
         moves = super().create(vals_list)
         for move in moves:
             move._populate_from_picking()
+            move._split_lines_by_lot()
         return moves
 
     def write(self, vals):
-        """Re-populate logistics fields when invoice lines are modified."""
+        """Re-populate logistics fields and split lot lines when invoice lines change."""
         res = super().write(vals)
         if 'invoice_line_ids' in vals or 'line_ids' in vals:
             for move in self:
-                move._populate_from_picking()
+                if not self.env.context.get('skip_populate_from_picking'):
+                    move._populate_from_picking()
+                if not self.env.context.get('skip_split_lines'):
+                    move._split_lines_by_lot()
         return res
 
     def _populate_from_picking(self):
@@ -78,6 +82,126 @@ class AccountMove(models.Model):
                     move.x_studio_invoice_number = picking.x_studio_invoice_number
                 if picking.partner_id and picking.partner_id.country_id and not move.x_studio_destination_country:
                     move.x_studio_destination_country = picking.partner_id.country_id.id
+
+    def _split_lines_by_lot(self):
+        """
+        Split aggregated invoice lines into one line per lot.
+
+        Handles the SO wizard path where Odoo creates one line per SO line with
+        total quantity. We split these into per-lot lines matching the lot-level
+        granularity required for dropship tracking.
+
+        Detection logic:
+        - Lines from button_validate path already have x_studio_lot_number set to a
+          single lot name (no comma) → skipped.
+        - Lines from SO wizard path have x_studio_lot_number set by _populate_lot_number()
+          to "lot1, lot2, ..." (with comma) → split into per-lot lines.
+        - Safety: total lot qty must match the invoice line qty to prevent over-split
+          in partial invoicing scenarios.
+        """
+        for invoice in self:
+            if invoice.state != 'draft':
+                continue
+            if invoice.move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'):
+                continue
+
+            to_remove_ids = []
+            to_add_vals = []
+
+            for line in invoice.invoice_line_ids:
+                if line.display_type:
+                    continue
+
+                # Lines already split to a single lot have no comma in their lot field
+                lot_field = line.x_studio_lot_number or ''
+                if lot_field and ',' not in lot_field:
+                    continue
+
+                # Collect lot quantities from linked done stock moves
+                lot_quantities = {}
+
+                if line.sale_line_ids:
+                    for sale_line in line.sale_line_ids:
+                        for move in sale_line.move_ids:
+                            if move.state != 'done':
+                                continue
+                            for ml in move.move_line_ids:
+                                if ml.qty_done <= 0:
+                                    continue
+                                key = ml.lot_id.id if ml.lot_id else False
+                                if key not in lot_quantities:
+                                    lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
+                                lot_quantities[key]['qty'] += ml.qty_done
+
+                elif line.purchase_line_id:
+                    for move in line.purchase_line_id.move_ids:
+                        if move.state != 'done':
+                            continue
+                        for ml in move.move_line_ids:
+                            if ml.qty_done <= 0:
+                                continue
+                            key = ml.lot_id.id if ml.lot_id else False
+                            if key not in lot_quantities:
+                                lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
+                            lot_quantities[key]['qty'] += ml.qty_done
+
+                # Drop the no-lot aggregate entry if lot-specific entries exist
+                if False in lot_quantities and len(lot_quantities) > 1:
+                    del lot_quantities[False]
+
+                # Only split if there are multiple distinct lots
+                if len(lot_quantities) <= 1:
+                    continue
+
+                # Safety: total lot qty must match invoice line qty.
+                # Mismatch means partial invoicing — we can't determine which lots belong here.
+                total_lot_qty = sum(entry['qty'] for entry in lot_quantities.values())
+                if abs(total_lot_qty - line.quantity) > 0.001:
+                    _logger.warning(
+                        'Invoice line %s (move %s): lot qty total %.2f ≠ line qty %.2f, skipping split',
+                        line.id, invoice.name, total_lot_qty, line.quantity,
+                    )
+                    continue
+
+                to_remove_ids.append(line.id)
+
+                for entry in lot_quantities.values():
+                    vals = {
+                        'product_id': line.product_id.id,
+                        'name': line.name,
+                        'quantity': entry['qty'],
+                        'price_unit': line.price_unit,
+                        'account_id': line.account_id.id,
+                    }
+                    if line.tax_ids:
+                        vals['tax_ids'] = [(6, 0, line.tax_ids.ids)]
+                    if line.sale_line_ids:
+                        vals['sale_line_ids'] = [(4, sl.id) for sl in line.sale_line_ids]
+                    if line.purchase_line_id:
+                        vals['purchase_line_id'] = line.purchase_line_id.id
+                    if line.x_studio_po_no_ref:
+                        vals['x_studio_po_no_ref'] = line.x_studio_po_no_ref
+                    if line.x_studio_delivery_date:
+                        vals['x_studio_delivery_date'] = line.x_studio_delivery_date
+
+                    lot = entry.get('lot')
+                    if lot:
+                        vals['x_studio_lot_number'] = lot.name
+                        if lot.expiration_date:
+                            exp = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
+                            vals['x_studio_expiration_date'] = exp
+
+                    to_add_vals.append(vals)
+
+            if not to_remove_ids:
+                continue
+
+            write_cmds = [(2, lid) for lid in to_remove_ids]
+            write_cmds += [(0, 0, v) for v in to_add_vals]
+            invoice.with_context(
+                skip_split_lines=True,
+                skip_populate_from_picking=True,
+            ).write({'invoice_line_ids': write_cmds})
 
 
 class AccountMoveLine(models.Model):
