@@ -112,7 +112,14 @@ class AccountMove(models.Model):
             to_remove_ids = []
             to_add_vals = []
 
-            for line in invoice.invoice_line_ids:
+            # Query lines directly from DB to avoid One2many cache issues right after create()
+            lines = self.env['account.move.line'].search([
+                ('move_id', '=', invoice.id),
+                ('display_type', 'in', [False, 'product']),
+            ])
+            _logger.info('_split_lines_by_lot: found %d lines via direct search', len(lines))
+
+            for line in lines:
                 if line.display_type:
                     continue
 
