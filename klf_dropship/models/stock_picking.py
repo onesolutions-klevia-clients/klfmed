@@ -18,41 +18,41 @@ class StockPicking(models.Model):
 
     def _auto_invoice_dropship(self):
         """
-        Auto-create or update a draft customer invoice when a dropship is confirmed.
+        Auto-create or update a draft vendor bill when a dropship is confirmed.
 
         Business rules:
-        - Match key: Sales Order ID + Invoice Number (x_studio_invoice_number)
-        - If a draft invoice exists for the same key, append lines to it
+        - Match key: Invoice Number (x_studio_invoice_number) only
+        - If a draft bill exists for the same invoice number, append lines to it
         - If no draft exists (or all are posted/cancelled), create a new one
         - Document remains in draft for manual validation
-        - Vendor bills are NOT auto-created; they must be created manually from the PO.
+        - Customer invoices are NOT auto-created; they must be created via SO wizard.
         """
         self.ensure_one()
 
-        sale_order = self._get_dropship_sale_order()
-        if not sale_order:
-            _logger.warning(
-                'Dropship %s: no related Sales Order found, skipping auto-invoice.',
-                self.name
-            )
+        invoice_number = self.x_studio_invoice_number or ''
+        _logger.info('Dropship %s: _auto_invoice_dropship called, invoice_number="%s"', self.name, invoice_number)
+
+        # --- Vendor bill (in_invoice) ---
+        purchase_order = self._get_dropship_purchase_order()
+        if not purchase_order:
+            _logger.warning('Dropship %s: no related Purchase Order found, skipping vendor bill.', self.name)
             return
 
-        invoice_number = self.x_studio_invoice_number or ''
+        _logger.info('Dropship %s: found PO %s, searching for draft vendor bill with invoice_number="%s"',
+                     self.name, purchase_order.name, invoice_number)
 
-        # --- Customer invoice (out_invoice) ---
-        draft_invoice = self._find_draft_invoice(sale_order, invoice_number)
-        if draft_invoice:
-            _logger.info(
-                'Dropship %s: appending lines to existing draft invoice %s',
-                self.name, draft_invoice.name
-            )
-            self._append_invoice_lines(draft_invoice, sale_order)
+        draft_bill = self._find_draft_vendor_bill(purchase_order, invoice_number)
+        if draft_bill:
+            _logger.info('Dropship %s: appending lines to existing draft vendor bill %s', self.name, draft_bill.name)
+            bill_lines_before = len(draft_bill.invoice_line_ids)
+            self._append_vendor_bill_lines(draft_bill)
+            _logger.info('Dropship %s: vendor bill %s lines: %d → %d',
+                         self.name, draft_bill.name, bill_lines_before, len(draft_bill.invoice_line_ids))
         else:
-            _logger.info(
-                'Dropship %s: creating new draft invoice for SO %s',
-                self.name, sale_order.name
-            )
-            self._create_draft_invoice(sale_order, invoice_number)
+            _logger.info('Dropship %s: creating new draft vendor bill for PO %s', self.name, purchase_order.name)
+            bill = self._create_draft_vendor_bill(purchase_order, invoice_number)
+            _logger.info('Dropship %s: created vendor bill %s with %d lines',
+                         self.name, bill.name, len(bill.invoice_line_ids))
 
     def _get_dropship_purchase_order(self):
         """Retrieve the Purchase Order linked to this dropship picking."""

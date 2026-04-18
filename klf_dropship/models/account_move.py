@@ -100,13 +100,9 @@ class AccountMove(models.Model):
           in partial invoicing scenarios.
         """
         for invoice in self:
-            _logger.info('_split_lines_by_lot: processing invoice %s (state=%s, type=%s)',
-                         invoice.name, invoice.state, invoice.move_type)
             if invoice.state != 'draft':
-                _logger.info('_split_lines_by_lot: skipped (not draft)')
                 continue
             if invoice.move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'):
-                _logger.info('_split_lines_by_lot: skipped (move_type=%s)', invoice.move_type)
                 continue
 
             to_remove_ids = []
@@ -117,19 +113,12 @@ class AccountMove(models.Model):
                 ('move_id', '=', invoice.id),
                 ('display_type', 'in', [False, 'product']),
             ])
-            _logger.info('_split_lines_by_lot: found %d lines via direct search', len(lines))
 
             for line in lines:
-                if line.display_type not in (False, 'product'):
-                    continue
-
                 lot_field = line.x_studio_lot_number or ''
-                _logger.info('_split_lines_by_lot: line %s | lot_field="%s" | sale_line_ids=%s | purchase_line_id=%s',
-                             line.id, lot_field, line.sale_line_ids.ids, line.purchase_line_id.id if line.purchase_line_id else False)
 
                 # Lines already split to a single lot have no comma in their lot field
                 if lot_field and ',' not in lot_field:
-                    _logger.info('_split_lines_by_lot: line %s skipped (single lot, no comma)', line.id)
                     continue
 
                 # Collect lot quantities from linked stock moves.
@@ -139,13 +128,9 @@ class AccountMove(models.Model):
 
                 if line.sale_line_ids:
                     for sale_line in line.sale_line_ids:
-                        _logger.info('_split_lines_by_lot: traversing sale_line %s → %d moves',
-                                     sale_line.id, len(sale_line.move_ids))
                         for move in sale_line.move_ids:
                             if move.state == 'cancel':
                                 continue
-                            _logger.info('_split_lines_by_lot: move %s state=%s, %d move_lines',
-                                         move.id, move.state, len(move.move_line_ids))
                             for ml in move.move_line_ids:
                                 if not ml.lot_id:
                                     continue
@@ -153,11 +138,6 @@ class AccountMove(models.Model):
                                     getattr(ml, 'reserved_uom_qty', 0.0)
                                     or getattr(ml, 'product_uom_qty', 0.0)
                                 )
-                                _logger.info('_split_lines_by_lot: ml %s lot=%s qty_done=%s reserved=%s → qty=%s',
-                                             ml.id, ml.lot_id.name,
-                                             ml.qty_done,
-                                             getattr(ml, 'reserved_uom_qty', 'n/a'),
-                                             qty)
                                 if qty <= 0:
                                     continue
                                 key = ml.lot_id.id
@@ -183,16 +163,12 @@ class AccountMove(models.Model):
                                 lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
                             lot_quantities[key]['qty'] += qty
 
-                _logger.info('_split_lines_by_lot: line %s → lot_quantities keys: %s',
-                             line.id, list(lot_quantities.keys()))
-
                 # Drop the no-lot aggregate entry if lot-specific entries exist
                 if False in lot_quantities and len(lot_quantities) > 1:
                     del lot_quantities[False]
 
                 # Only split if there are multiple distinct lots
                 if len(lot_quantities) <= 1:
-                    _logger.info('_split_lines_by_lot: line %s skipped (len(lot_quantities)=%d)', line.id, len(lot_quantities))
                     continue
 
                 # Safety: total lot qty must match invoice line qty.
@@ -200,12 +176,10 @@ class AccountMove(models.Model):
                 total_lot_qty = sum(entry['qty'] for entry in lot_quantities.values())
                 if abs(total_lot_qty - line.quantity) > 0.001:
                     _logger.warning(
-                        '_split_lines_by_lot: line %s SAFETY FAIL — lot qty total %.2f ≠ line qty %.2f',
-                        line.id, total_lot_qty, line.quantity,
+                        'Invoice %s line %s: lot qty total %.2f ≠ line qty %.2f, skipping split',
+                        invoice.name, line.id, total_lot_qty, line.quantity,
                     )
                     continue
-
-                _logger.info('_split_lines_by_lot: line %s will be split into %d lot lines', line.id, len(lot_quantities))
 
                 to_remove_ids.append(line.id)
 
