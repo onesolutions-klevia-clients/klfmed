@@ -11,21 +11,46 @@ class AccountMove(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """Auto-populate logistics fields and split lot lines after creation."""
+        _logger.info('[AccountMove.create] Creating %d invoice(s)', len(vals_list))
         moves = super().create(vals_list)
         for move in moves:
+            _logger.info(
+                '[AccountMove.create] Post-create hooks for invoice %s (type=%s, state=%s, lines=%d)',
+                move.name or move.id, move.move_type, move.state, len(move.invoice_line_ids),
+            )
             move._populate_from_picking()
             move._split_lines_by_lot()
         return moves
 
     def write(self, vals):
         """Re-populate logistics fields and split lot lines when invoice lines change."""
+        has_line_change = 'invoice_line_ids' in vals or 'line_ids' in vals
+        skip_populate = self.env.context.get('skip_populate_from_picking')
+        skip_split = self.env.context.get('skip_split_lines')
+
+        if has_line_change:
+            _logger.info(
+                '[AccountMove.write] invoice_line_ids/line_ids changed on %d invoice(s) '
+                '| skip_populate=%s skip_split=%s',
+                len(self), skip_populate, skip_split,
+            )
+
         res = super().write(vals)
-        if 'invoice_line_ids' in vals or 'line_ids' in vals:
+
+        if has_line_change:
             for move in self:
-                if not self.env.context.get('skip_populate_from_picking'):
+                _logger.info(
+                    '[AccountMove.write] Post-write hooks for invoice %s (lines now=%d)',
+                    move.name or move.id, len(move.invoice_line_ids),
+                )
+                if not skip_populate:
                     move._populate_from_picking()
-                if not self.env.context.get('skip_split_lines'):
+                else:
+                    _logger.info('[AccountMove.write] skip_populate_from_picking=True → skipping')
+                if not skip_split:
                     move._split_lines_by_lot()
+                else:
+                    _logger.info('[AccountMove.write] skip_split_lines=True → skipping')
         return res
 
     def _populate_from_picking(self):
@@ -40,6 +65,10 @@ class AccountMove(models.Model):
         - x_studio_destination_country (from partner country)
         """
         for move in self:
+            _logger.info(
+                '[_populate_from_picking] Invoice %s | invoice_number_before="%s"',
+                move.name or move.id, move.x_studio_invoice_number or '',
+            )
             # Find related picking and sale order from invoice lines
             pickings = self.env['stock.picking']
             sale_orders = self.env['sale.order']
@@ -57,6 +86,13 @@ class AccountMove(models.Model):
                         ], limit=1)
                         if so:
                             sale_orders |= so
+
+            _logger.info(
+                '[_populate_from_picking] Invoice %s | found %d picking(s): %s | found %d SO(s): %s',
+                move.name or move.id,
+                len(pickings), pickings.mapped('name'),
+                len(sale_orders), sale_orders.mapped('name'),
+            )
 
             # Source defaults from customer (via SO partner, fallback to invoice partner)
             partner = sale_orders[0].partner_id if sale_orders else move.partner_id
@@ -79,9 +115,18 @@ class AccountMove(models.Model):
                 if picking.x_studio_port_of_loading and not move.x_studio_port_of_loading:
                     move.x_studio_port_of_loading = picking.x_studio_port_of_loading
                 if picking.x_studio_invoice_number and not move.x_studio_invoice_number:
+                    _logger.info(
+                        '[_populate_from_picking] Invoice %s | setting invoice_number="%s" from picking %s',
+                        move.name or move.id, picking.x_studio_invoice_number, picking.name,
+                    )
                     move.x_studio_invoice_number = picking.x_studio_invoice_number
                 if picking.partner_id and picking.partner_id.country_id and not move.x_studio_destination_country:
                     move.x_studio_destination_country = picking.partner_id.country_id.id
+
+            _logger.info(
+                '[_populate_from_picking] Invoice %s | invoice_number_after="%s"',
+                move.name or move.id, move.x_studio_invoice_number or '',
+            )
 
     def _split_lines_by_lot(self):
         """
@@ -98,12 +143,43 @@ class AccountMove(models.Model):
           to "lot1, lot2, ..." (with comma) → split into per-lot lines.
         - Safety: total lot qty must match the invoice line qty to prevent over-split
           in partial invoicing scenarios.
+
+        Scoping: lot quantities are restricted to pickings matching this invoice's
+        x_studio_invoice_number, preventing lots from other shipments (backorders,
+        multi-step routes) from inflating the line count or breaking the safety check.
         """
         for invoice in self:
+            _logger.info(
+                '[_split_lines_by_lot] Invoice %s | state=%s type=%s',
+                invoice.name or invoice.id, invoice.state, invoice.move_type,
+            )
+
             if invoice.state != 'draft':
+                _logger.info('[_split_lines_by_lot] Invoice %s | skipped (not draft)', invoice.name or invoice.id)
                 continue
             if invoice.move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund'):
+                _logger.info('[_split_lines_by_lot] Invoice %s | skipped (move_type=%s)', invoice.name or invoice.id, invoice.move_type)
                 continue
+
+            # Find relevant pickings for this invoice via invoice number to avoid
+            # counting lots from unrelated shipments (other backorders, multi-step moves).
+            relevant_picking_ids = set()
+            if invoice.x_studio_invoice_number:
+                relevant_pickings = self.env['stock.picking'].search([
+                    ('x_studio_invoice_number', '=', invoice.x_studio_invoice_number),
+                    ('state', '=', 'done'),
+                ])
+                relevant_picking_ids = set(relevant_pickings.ids)
+                _logger.info(
+                    '[_split_lines_by_lot] Invoice %s | invoice_number="%s" → %d relevant picking(s): %s',
+                    invoice.name or invoice.id, invoice.x_studio_invoice_number,
+                    len(relevant_pickings), relevant_pickings.mapped('name'),
+                )
+            else:
+                _logger.info(
+                    '[_split_lines_by_lot] Invoice %s | no invoice_number set → no picking filter (all moves considered)',
+                    invoice.name or invoice.id,
+                )
 
             to_remove_ids = []
             to_add_vals = []
@@ -111,76 +187,135 @@ class AccountMove(models.Model):
             # Query lines directly from DB to avoid One2many cache issues right after create()
             lines = self.env['account.move.line'].search([
                 ('move_id', '=', invoice.id),
-                ('display_type', 'in', [False, 'product']),
+                ('display_type', '=', 'product'),
+                ('product_id', '!=', False),
             ])
+
+            _logger.info(
+                '[_split_lines_by_lot] Invoice %s | %d product line(s) to inspect',
+                invoice.name or invoice.id, len(lines),
+            )
 
             for line in lines:
                 lot_field = line.x_studio_lot_number or ''
+                _logger.info(
+                    '[_split_lines_by_lot] Line %s | product=%s qty=%.2f lot_field="%s"',
+                    line.id, line.product_id.display_name, line.quantity, lot_field,
+                )
 
                 # Lines already split to a single lot have no comma in their lot field
                 if lot_field and ',' not in lot_field:
+                    _logger.info('[_split_lines_by_lot] Line %s | skipped (single lot, no comma)', line.id)
                     continue
 
-                # Collect lot quantities from linked stock moves.
+                # Lines with no lot info at all: nothing to split
+                if not lot_field:
+                    _logger.info('[_split_lines_by_lot] Line %s | skipped (no lot number set)', line.id)
+                    continue
+
+                # Collect lot quantities from linked stock moves, restricted to relevant pickings.
                 # Use qty_done if the picking is validated, reserved qty otherwise
                 # (covers both "ordered qty" invoicing policy and pre-assigned lots).
                 lot_quantities = {}
 
+                def _add_move_lots(move):
+                    if move.state == 'cancel':
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | move %s skipped (cancelled)',
+                            line.id, move.id,
+                        )
+                        return
+                    if relevant_picking_ids and move.picking_id.id not in relevant_picking_ids:
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | move %s picking %s skipped (not in relevant pickings)',
+                            line.id, move.id, move.picking_id.name if move.picking_id else 'none',
+                        )
+                        return
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | processing move %s (picking=%s state=%s move_lines=%d)',
+                        line.id, move.id,
+                        move.picking_id.name if move.picking_id else 'none',
+                        move.state, len(move.move_line_ids),
+                    )
+                    for ml in move.move_line_ids:
+                        if not ml.lot_id:
+                            continue
+                        qty = ml.qty_done or (
+                            getattr(ml, 'reserved_uom_qty', 0.0)
+                            or getattr(ml, 'product_uom_qty', 0.0)
+                        )
+                        if qty <= 0:
+                            continue
+                        key = ml.lot_id.id
+                        if key not in lot_quantities:
+                            lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
+                        lot_quantities[key]['qty'] += qty
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | lot "%s" qty_done=%.2f → running total=%.2f',
+                            line.id, ml.lot_id.name, qty, lot_quantities[key]['qty'],
+                        )
+
                 if line.sale_line_ids:
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | has %d sale_line(s), iterating moves',
+                        line.id, len(line.sale_line_ids),
+                    )
                     for sale_line in line.sale_line_ids:
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | sale_line %s has %d move(s)',
+                            line.id, sale_line.id, len(sale_line.move_ids),
+                        )
                         for move in sale_line.move_ids:
-                            if move.state == 'cancel':
-                                continue
-                            for ml in move.move_line_ids:
-                                if not ml.lot_id:
-                                    continue
-                                qty = ml.qty_done or (
-                                    getattr(ml, 'reserved_uom_qty', 0.0)
-                                    or getattr(ml, 'product_uom_qty', 0.0)
-                                )
-                                if qty <= 0:
-                                    continue
-                                key = ml.lot_id.id
-                                if key not in lot_quantities:
-                                    lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
-                                lot_quantities[key]['qty'] += qty
+                            _add_move_lots(move)
 
                 elif line.purchase_line_id:
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | has purchase_line %s with %d move(s)',
+                        line.id, line.purchase_line_id.id, len(line.purchase_line_id.move_ids),
+                    )
                     for move in line.purchase_line_id.move_ids:
-                        if move.state == 'cancel':
-                            continue
-                        for ml in move.move_line_ids:
-                            if not ml.lot_id:
-                                continue
-                            qty = ml.qty_done or (
-                                getattr(ml, 'reserved_uom_qty', 0.0)
-                                or getattr(ml, 'product_uom_qty', 0.0)
-                            )
-                            if qty <= 0:
-                                continue
-                            key = ml.lot_id.id
-                            if key not in lot_quantities:
-                                lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
-                            lot_quantities[key]['qty'] += qty
+                        _add_move_lots(move)
+
+                else:
+                    _logger.info('[_split_lines_by_lot] Line %s | no sale_line_ids and no purchase_line_id', line.id)
 
                 # Drop the no-lot aggregate entry if lot-specific entries exist
                 if False in lot_quantities and len(lot_quantities) > 1:
+                    _logger.info('[_split_lines_by_lot] Line %s | dropping no-lot aggregate entry', line.id)
                     del lot_quantities[False]
+
+                _logger.info(
+                    '[_split_lines_by_lot] Line %s | lot_quantities=%d distinct lots: %s',
+                    line.id, len(lot_quantities),
+                    {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
+                )
 
                 # Only split if there are multiple distinct lots
                 if len(lot_quantities) <= 1:
+                    _logger.info('[_split_lines_by_lot] Line %s | skipped (≤1 lot found)', line.id)
                     continue
 
                 # Safety: total lot qty must match invoice line qty.
                 # Mismatch means partial invoicing — we can't determine which lots belong here.
                 total_lot_qty = sum(entry['qty'] for entry in lot_quantities.values())
+                _logger.info(
+                    '[_split_lines_by_lot] Line %s | safety check: total_lot_qty=%.2f vs line.quantity=%.2f',
+                    line.id, total_lot_qty, line.quantity,
+                )
                 if abs(total_lot_qty - line.quantity) > 0.001:
                     _logger.warning(
-                        'Invoice %s line %s: lot qty total %.2f ≠ line qty %.2f, skipping split',
+                        '[_split_lines_by_lot] Invoice %s line %s: '
+                        'lot qty total %.2f ≠ line qty %.2f → SKIPPING split. '
+                        'Lots found: %s',
                         invoice.name, line.id, total_lot_qty, line.quantity,
+                        {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
                     )
                     continue
 
+                _logger.info(
+                    '[_split_lines_by_lot] Line %s | WILL SPLIT into %d lot lines',
+                    line.id, len(lot_quantities),
+                )
                 to_remove_ids.append(line.id)
 
                 for entry in lot_quantities.values():
@@ -208,11 +343,21 @@ class AccountMove(models.Model):
                         if lot.expiration_date:
                             exp = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
                             vals['x_studio_expiration_date'] = exp
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | new split line: lot="%s" qty=%.2f',
+                            line.id, lot.name, entry['qty'],
+                        )
 
                     to_add_vals.append(vals)
 
             if not to_remove_ids:
+                _logger.info('[_split_lines_by_lot] Invoice %s | nothing to split', invoice.name or invoice.id)
                 continue
+
+            _logger.info(
+                '[_split_lines_by_lot] Invoice %s | removing %d line(s), adding %d lot line(s)',
+                invoice.name or invoice.id, len(to_remove_ids), len(to_add_vals),
+            )
 
             write_cmds = [(2, lid) for lid in to_remove_ids]
             write_cmds += [(0, 0, v) for v in to_add_vals]
@@ -221,6 +366,11 @@ class AccountMove(models.Model):
                 skip_populate_from_picking=True,
             ).write({'invoice_line_ids': write_cmds})
 
+            _logger.info(
+                '[_split_lines_by_lot] Invoice %s | split complete, lines now=%d',
+                invoice.name or invoice.id, len(invoice.invoice_line_ids),
+            )
+
 
 class AccountMoveLine(models.Model):
     _inherit = 'account.move.line'
@@ -228,12 +378,24 @@ class AccountMoveLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """Auto-populate x_studio_po_no_ref from the related purchase order origin."""
+        _logger.info('[AccountMoveLine.create] Creating %d line(s)', len(vals_list))
         lines = super().create(vals_list)
         for line in lines:
+            _logger.info(
+                '[AccountMoveLine.create] Line %s | product=%s move=%s lot_field="%s"',
+                line.id,
+                line.product_id.display_name if line.product_id else 'none',
+                line.move_id.name if line.move_id else 'none',
+                line.x_studio_lot_number or '',
+            )
             line._populate_po_no()
             line._populate_lot_number()
             line._populate_expiration_date()
             line._populate_delivery_date()
+            _logger.info(
+                '[AccountMoveLine.create] Line %s | after populate: lot="%s"',
+                line.id, line.x_studio_lot_number or '',
+            )
         return lines
 
     def _should_apply_pricelist(self):
@@ -356,6 +518,10 @@ class AccountMoveLine(models.Model):
         """
         for line in self:
             if line.x_studio_lot_number:
+                _logger.info(
+                    '[_populate_lot_number] Line %s | already has lot="%s", skipping',
+                    line.id, line.x_studio_lot_number,
+                )
                 continue
 
             lot_names = []
@@ -376,7 +542,14 @@ class AccountMoveLine(models.Model):
                             lot_names.append(move_line.lot_id.name)
 
             if lot_names:
-                line.x_studio_lot_number = ', '.join(lot_names)
+                result = ', '.join(lot_names)
+                _logger.info(
+                    '[_populate_lot_number] Line %s | found %d lot(s): "%s"',
+                    line.id, len(lot_names), result,
+                )
+                line.x_studio_lot_number = result
+            else:
+                _logger.info('[_populate_lot_number] Line %s | no lots found', line.id)
 
     def _populate_po_no(self):
         """

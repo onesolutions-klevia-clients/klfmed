@@ -12,8 +12,14 @@ class StockPicking(models.Model):
         """Override to auto-create/update draft invoices on dropship confirmation."""
         res = super().button_validate()
         for picking in self:
+            _logger.info(
+                '[button_validate] Picking %s | picking_type_code=%s state=%s',
+                picking.name, picking.picking_type_code, picking.state,
+            )
             if picking.picking_type_code == 'dropship':
                 picking._auto_invoice_dropship()
+            else:
+                _logger.info('[button_validate] Picking %s | not a dropship, skipping auto-invoice', picking.name)
         return res
 
     def _auto_invoice_dropship(self):
@@ -105,43 +111,96 @@ class StockPicking(models.Model):
         """
         Prepare vendor bill line values from the dropship picking moves.
         One bill line is created per lot number (stock.move.line).
-        If no lots are tracked, falls back to one line per move.
+        If no lots are tracked, falls back to one line per purchase line.
+
+        Lots are aggregated across ALL moves for the same purchase line to avoid
+        creating duplicate lines when a multi-step route produces multiple stock.moves
+        for the same PO line in a single picking.
         """
-        lines = []
+        _logger.info(
+            '[_prepare_vendor_bill_lines] Picking %s | %d move(s) to process',
+            self.name, len(self.move_ids),
+        )
+
+        # Group moves by purchase_line (or product as fallback) to aggregate lots across
+        # all moves for the same line — prevents x-duplication in multi-step routes.
+        per_line = {}  # key -> {common_vals, lot_quantities, total_qty}
+
         for move in self.move_ids:
             if move.state == 'cancel':
+                _logger.info('[_prepare_vendor_bill_lines] Move %s skipped (cancelled)', move.id)
                 continue
 
             purchase_line = move.purchase_line_id
-            price_unit = purchase_line.price_unit if purchase_line else move.product_id.standard_price
+            group_key = purchase_line.id if purchase_line else ('product', move.product_id.id)
 
-            common_vals = {
-                'product_id': move.product_id.id,
-                'price_unit': price_unit,
-                'name': move.description_picking or move.product_id.display_name,
-            }
-            if purchase_line and purchase_line.tax_ids:
-                common_vals['tax_ids'] = [(6, 0, purchase_line.tax_ids.ids)]
-            if move.x_studio_po_no:
-                common_vals['x_studio_po_no_ref'] = move.x_studio_po_no
-            if move.x_studio_delivery_date:
-                common_vals['x_studio_delivery_date'] = move.x_studio_delivery_date
-            if purchase_line:
-                common_vals['purchase_line_id'] = purchase_line.id
+            _logger.info(
+                '[_prepare_vendor_bill_lines] Move %s | product=%s purchase_line=%s group_key=%s move_lines=%d',
+                move.id, move.product_id.display_name,
+                purchase_line.id if purchase_line else 'none',
+                group_key, len(move.move_line_ids),
+            )
 
-            # Group qty_done by lot
-            lot_quantities = {}
+            if group_key not in per_line:
+                price_unit = purchase_line.price_unit if purchase_line else move.product_id.standard_price
+                common_vals = {
+                    'product_id': move.product_id.id,
+                    'price_unit': price_unit,
+                    'name': move.description_picking or move.product_id.display_name,
+                }
+                if purchase_line and purchase_line.tax_ids:
+                    common_vals['tax_ids'] = [(6, 0, purchase_line.tax_ids.ids)]
+                if move.x_studio_po_no:
+                    common_vals['x_studio_po_no_ref'] = move.x_studio_po_no
+                if move.x_studio_delivery_date:
+                    common_vals['x_studio_delivery_date'] = move.x_studio_delivery_date
+                if purchase_line:
+                    common_vals['purchase_line_id'] = purchase_line.id
+                per_line[group_key] = {
+                    'common_vals': common_vals,
+                    'lot_quantities': {},
+                    'total_qty': 0.0,
+                }
+                _logger.info(
+                    '[_prepare_vendor_bill_lines] New group key=%s | price_unit=%.2f',
+                    group_key, price_unit,
+                )
+            else:
+                _logger.info(
+                    '[_prepare_vendor_bill_lines] Move %s merged into existing group key=%s',
+                    move.id, group_key,
+                )
+
+            data = per_line[group_key]
             for move_line in move.move_line_ids:
                 if move_line.qty_done <= 0:
                     continue
-                key = move_line.lot_id.id if move_line.lot_id else False
-                if key not in lot_quantities:
-                    lot_quantities[key] = {'qty': 0.0, 'lot': move_line.lot_id}
-                lot_quantities[key]['qty'] += move_line.qty_done
+                lot_key = move_line.lot_id.id if move_line.lot_id else False
+                lq = data['lot_quantities']
+                if lot_key not in lq:
+                    lq[lot_key] = {'qty': 0.0, 'lot': move_line.lot_id}
+                lq[lot_key]['qty'] += move_line.qty_done
+                _logger.info(
+                    '[_prepare_vendor_bill_lines] Move %s | lot "%s" qty_done=%.2f → group total=%.2f',
+                    move.id,
+                    move_line.lot_id.name if move_line.lot_id else 'no-lot',
+                    move_line.qty_done, lq[lot_key]['qty'],
+                )
+            data['total_qty'] += move.quantity
 
-            # If there are lot-specific lines alongside a no-lot aggregate line, drop the aggregate
+        lines = []
+        for group_key, data in per_line.items():
+            common_vals = data['common_vals']
+            lot_quantities = data['lot_quantities']
+
             if False in lot_quantities and len(lot_quantities) > 1:
+                _logger.info('[_prepare_vendor_bill_lines] group %s | dropping no-lot aggregate entry', group_key)
                 del lot_quantities[False]
+
+            _logger.info(
+                '[_prepare_vendor_bill_lines] group %s | %d distinct lot(s), total_qty=%.2f',
+                group_key, len(lot_quantities), data['total_qty'],
+            )
 
             if lot_quantities:
                 for entry in lot_quantities.values():
@@ -153,21 +212,23 @@ class StockPicking(models.Model):
                         if lot.expiration_date:
                             exp_date = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
                             line_vals['x_studio_expiration_date'] = exp_date
+                    _logger.info(
+                        '[_prepare_vendor_bill_lines] → bill line: lot="%s" qty=%.2f',
+                        lot.name if lot else 'no-lot', entry['qty'],
+                    )
                     lines.append((0, 0, line_vals))
-            elif move.quantity > 0:
-                # Fallback: only if no sibling move for the same product has qty_done
-                # (avoids duplicate aggregate lines when Odoo creates multiple moves per product)
-                sibling_has_done = any(
-                    other.product_id == move.product_id
-                    and any(ml.qty_done > 0 for ml in other.move_line_ids)
-                    for other in self.move_ids
-                    if other != move
+            elif data['total_qty'] > 0:
+                line_vals = dict(common_vals)
+                line_vals['quantity'] = data['total_qty']
+                _logger.info(
+                    '[_prepare_vendor_bill_lines] → bill line (no lots): qty=%.2f', data['total_qty'],
                 )
-                if not sibling_has_done:
-                    line_vals = dict(common_vals)
-                    line_vals['quantity'] = move.quantity
-                    lines.append((0, 0, line_vals))
+                lines.append((0, 0, line_vals))
 
+        _logger.info(
+            '[_prepare_vendor_bill_lines] Picking %s | result: %d bill line(s)',
+            self.name, len(lines),
+        )
         return lines
 
     def _get_dropship_sale_order(self):
@@ -228,48 +289,98 @@ class StockPicking(models.Model):
         """
         Prepare invoice line values from the dropship picking moves.
         One invoice line is created per lot number (stock.move.line).
-        If no lots are tracked, falls back to one line per move.
+        If no lots are tracked, falls back to one line per sale line.
+
+        Lots are aggregated across ALL moves for the same sale line to avoid
+        creating duplicate lines when a multi-step route produces multiple stock.moves
+        for the same SO line in a single picking.
         """
-        lines = []
+        _logger.info(
+            '[_prepare_invoice_lines] Picking %s | SO=%s | %d move(s)',
+            self.name, sale_order.name, len(self.move_ids),
+        )
+
+        # Group moves by sale_line (or product as fallback) to aggregate lots across
+        # all moves for the same line — prevents x-duplication in multi-step routes.
+        per_line = {}  # key -> {common_vals, lot_quantities, total_qty}
+
         for move in self.move_ids:
             if move.state == 'cancel':
+                _logger.info('[_prepare_invoice_lines] Move %s skipped (cancelled)', move.id)
                 continue
 
-            # Find the matching SO line for pricing
             sale_line = self._find_sale_line(move, sale_order)
-            price_unit = sale_line.price_unit if sale_line else move.product_id.lst_price
+            group_key = sale_line.id if sale_line else ('product', move.product_id.id)
 
-            # Fields shared across all lines for this move
-            common_vals = {
-                'product_id': move.product_id.id,
-                'price_unit': price_unit,
-                'name': move.description_picking or move.product_id.display_name,
-            }
-            if sale_line and sale_line.tax_ids:
-                common_vals['tax_ids'] = [(6, 0, sale_line.tax_ids.ids)]
-            if move.x_studio_po_no:
-                common_vals['x_studio_po_no_ref'] = move.x_studio_po_no
-            if move.x_studio_delivery_date:
-                common_vals['x_studio_delivery_date'] = move.x_studio_delivery_date
-            if sale_line:
-                common_vals['sale_line_ids'] = [(4, sale_line.id)]
+            _logger.info(
+                '[_prepare_invoice_lines] Move %s | product=%s sale_line=%s group_key=%s move_lines=%d',
+                move.id, move.product_id.display_name,
+                sale_line.id if sale_line else 'none',
+                group_key, len(move.move_line_ids),
+            )
 
-            # Group qty_done by lot (lot_id=False means no lot tracking)
-            lot_quantities = {}
+            if group_key not in per_line:
+                price_unit = sale_line.price_unit if sale_line else move.product_id.lst_price
+                common_vals = {
+                    'product_id': move.product_id.id,
+                    'price_unit': price_unit,
+                    'name': move.description_picking or move.product_id.display_name,
+                }
+                if sale_line and sale_line.tax_ids:
+                    common_vals['tax_ids'] = [(6, 0, sale_line.tax_ids.ids)]
+                if move.x_studio_po_no:
+                    common_vals['x_studio_po_no_ref'] = move.x_studio_po_no
+                if move.x_studio_delivery_date:
+                    common_vals['x_studio_delivery_date'] = move.x_studio_delivery_date
+                if sale_line:
+                    common_vals['sale_line_ids'] = [(4, sale_line.id)]
+                per_line[group_key] = {
+                    'common_vals': common_vals,
+                    'lot_quantities': {},
+                    'total_qty': 0.0,
+                }
+                _logger.info(
+                    '[_prepare_invoice_lines] New group key=%s | price_unit=%.2f',
+                    group_key, price_unit,
+                )
+            else:
+                _logger.info(
+                    '[_prepare_invoice_lines] Move %s merged into existing group key=%s',
+                    move.id, group_key,
+                )
+
+            data = per_line[group_key]
             for move_line in move.move_line_ids:
                 if move_line.qty_done <= 0:
                     continue
-                key = move_line.lot_id.id if move_line.lot_id else False
-                if key not in lot_quantities:
-                    lot_quantities[key] = {'qty': 0.0, 'lot': move_line.lot_id}
-                lot_quantities[key]['qty'] += move_line.qty_done
+                lot_key = move_line.lot_id.id if move_line.lot_id else False
+                lq = data['lot_quantities']
+                if lot_key not in lq:
+                    lq[lot_key] = {'qty': 0.0, 'lot': move_line.lot_id}
+                lq[lot_key]['qty'] += move_line.qty_done
+                _logger.info(
+                    '[_prepare_invoice_lines] Move %s | lot "%s" qty_done=%.2f → group total=%.2f',
+                    move.id,
+                    move_line.lot_id.name if move_line.lot_id else 'no-lot',
+                    move_line.qty_done, lq[lot_key]['qty'],
+                )
+            data['total_qty'] += move.quantity
 
-            # If there are lot-specific lines alongside a no-lot aggregate line, drop the aggregate
+        lines = []
+        for group_key, data in per_line.items():
+            common_vals = data['common_vals']
+            lot_quantities = data['lot_quantities']
+
             if False in lot_quantities and len(lot_quantities) > 1:
+                _logger.info('[_prepare_invoice_lines] group %s | dropping no-lot aggregate entry', group_key)
                 del lot_quantities[False]
 
+            _logger.info(
+                '[_prepare_invoice_lines] group %s | %d distinct lot(s), total_qty=%.2f',
+                group_key, len(lot_quantities), data['total_qty'],
+            )
+
             if lot_quantities:
-                # One invoice line per lot
                 for entry in lot_quantities.values():
                     line_vals = dict(common_vals)
                     line_vals['quantity'] = entry['qty']
@@ -279,21 +390,23 @@ class StockPicking(models.Model):
                         if lot.expiration_date:
                             exp_date = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
                             line_vals['x_studio_expiration_date'] = exp_date
+                    _logger.info(
+                        '[_prepare_invoice_lines] → invoice line: lot="%s" qty=%.2f',
+                        lot.name if lot else 'no-lot', entry['qty'],
+                    )
                     lines.append((0, 0, line_vals))
-            elif move.quantity > 0:
-                # Fallback: only if no sibling move for the same product has qty_done
-                # (avoids duplicate aggregate lines when Odoo creates multiple moves per product)
-                sibling_has_done = any(
-                    other.product_id == move.product_id
-                    and any(ml.qty_done > 0 for ml in other.move_line_ids)
-                    for other in self.move_ids
-                    if other != move
+            elif data['total_qty'] > 0:
+                line_vals = dict(common_vals)
+                line_vals['quantity'] = data['total_qty']
+                _logger.info(
+                    '[_prepare_invoice_lines] → invoice line (no lots): qty=%.2f', data['total_qty'],
                 )
-                if not sibling_has_done:
-                    line_vals = dict(common_vals)
-                    line_vals['quantity'] = move.quantity
-                    lines.append((0, 0, line_vals))
+                lines.append((0, 0, line_vals))
 
+        _logger.info(
+            '[_prepare_invoice_lines] Picking %s | result: %d invoice line(s)',
+            self.name, len(lines),
+        )
         return lines
 
     def _find_sale_line(self, stock_move, sale_order):
