@@ -16,8 +16,10 @@ class StockPicking(models.Model):
                 '[button_validate] Picking %s | picking_type_code=%s state=%s',
                 picking.name, picking.picking_type_code, picking.state,
             )
-            if picking.picking_type_code == 'dropship':
+            if picking.picking_type_code == 'dropship' and picking.state == 'done':
                 picking._auto_invoice_dropship()
+            elif picking.picking_type_code == 'dropship':
+                _logger.info('[button_validate] Picking %s | dropship but state=%s, skipping auto-invoice', picking.name, picking.state)
             else:
                 _logger.info('[button_validate] Picking %s | not a dropship, skipping auto-invoice', picking.name)
         return res
