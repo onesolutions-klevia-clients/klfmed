@@ -218,16 +218,17 @@ class AccountMove(models.Model):
                 # (covers both "ordered qty" invoicing policy and pre-assigned lots).
                 lot_quantities = {}
 
-                def _add_move_lots(move):
+                def _add_move_lots(move, target, pick_filter):
+                    """Add lot quantities from a stock.move to target dict, with optional picking filter."""
                     if move.state == 'cancel':
                         _logger.info(
                             '[_split_lines_by_lot] Line %s | move %s skipped (cancelled)',
                             line.id, move.id,
                         )
                         return
-                    if relevant_picking_ids and move.picking_id.id not in relevant_picking_ids:
+                    if pick_filter and move.picking_id.id not in pick_filter:
                         _logger.info(
-                            '[_split_lines_by_lot] Line %s | move %s picking %s skipped (not in relevant pickings)',
+                            '[_split_lines_by_lot] Line %s | move %s picking %s skipped (not in filter)',
                             line.id, move.id, move.picking_id.name if move.picking_id else 'none',
                         )
                         return
@@ -247,48 +248,66 @@ class AccountMove(models.Model):
                         if qty <= 0:
                             continue
                         key = ml.lot_id.id
-                        if key not in lot_quantities:
-                            lot_quantities[key] = {'qty': 0.0, 'lot': ml.lot_id}
-                        lot_quantities[key]['qty'] += qty
+                        if key not in target:
+                            target[key] = {'qty': 0.0, 'lot': ml.lot_id}
+                        target[key]['qty'] += qty
                         _logger.info(
                             '[_split_lines_by_lot] Line %s | lot "%s" qty_done=%.2f → running total=%.2f',
-                            line.id, ml.lot_id.name, qty, lot_quantities[key]['qty'],
+                            line.id, ml.lot_id.name, qty, target[key]['qty'],
                         )
+
+                def _collect_lots(active_filter):
+                    """Aggregate lot quantities from linked moves, optionally filtered by picking IDs."""
+                    result = {}
+                    if line.sale_line_ids:
+                        for sale_line in line.sale_line_ids:
+                            for move in sale_line.move_ids:
+                                _add_move_lots(move, result, active_filter)
+                    elif line.purchase_line_id:
+                        for move in line.purchase_line_id.move_ids:
+                            _add_move_lots(move, result, active_filter)
+                    if False in result and len(result) > 1:
+                        del result[False]
+                    return result
 
                 if line.sale_line_ids:
                     _logger.info(
-                        '[_split_lines_by_lot] Line %s | has %d sale_line(s), iterating moves',
+                        '[_split_lines_by_lot] Line %s | has %d sale_line(s) with total %d move(s)',
                         line.id, len(line.sale_line_ids),
+                        sum(len(sl.move_ids) for sl in line.sale_line_ids),
                     )
-                    for sale_line in line.sale_line_ids:
-                        _logger.info(
-                            '[_split_lines_by_lot] Line %s | sale_line %s has %d move(s)',
-                            line.id, sale_line.id, len(sale_line.move_ids),
-                        )
-                        for move in sale_line.move_ids:
-                            _add_move_lots(move)
-
                 elif line.purchase_line_id:
                     _logger.info(
                         '[_split_lines_by_lot] Line %s | has purchase_line %s with %d move(s)',
                         line.id, line.purchase_line_id.id, len(line.purchase_line_id.move_ids),
                     )
-                    for move in line.purchase_line_id.move_ids:
-                        _add_move_lots(move)
-
                 else:
                     _logger.info('[_split_lines_by_lot] Line %s | no sale_line_ids and no purchase_line_id', line.id)
+                    continue
 
-                # Drop the no-lot aggregate entry if lot-specific entries exist
-                if False in lot_quantities and len(lot_quantities) > 1:
-                    _logger.info('[_split_lines_by_lot] Line %s | dropping no-lot aggregate entry', line.id)
-                    del lot_quantities[False]
+                # Pass 1 — filtered by relevant pickings (invoice_number match)
+                lot_quantities = _collect_lots(relevant_picking_ids)
+                total_lot_qty = sum(e['qty'] for e in lot_quantities.values())
 
                 _logger.info(
-                    '[_split_lines_by_lot] Line %s | lot_quantities=%d distinct lots: %s',
-                    line.id, len(lot_quantities),
+                    '[_split_lines_by_lot] Line %s | pass-1 (filtered): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
+                    line.id, len(lot_quantities), total_lot_qty, line.quantity,
                     {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
                 )
+
+                if abs(total_lot_qty - line.quantity) > 0.001 and relevant_picking_ids:
+                    # Pass 2 — fall back to all done moves (line spans pickings with different invoice numbers)
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | pass-1 mismatch → pass-2: removing picking filter',
+                        line.id,
+                    )
+                    lot_quantities = _collect_lots(set())
+                    total_lot_qty = sum(e['qty'] for e in lot_quantities.values())
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | pass-2 (unfiltered): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
+                        line.id, len(lot_quantities), total_lot_qty, line.quantity,
+                        {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
+                    )
 
                 # Only split if there are multiple distinct lots
                 if len(lot_quantities) <= 1:
@@ -297,15 +316,10 @@ class AccountMove(models.Model):
 
                 # Safety: total lot qty must match invoice line qty.
                 # Mismatch means partial invoicing — we can't determine which lots belong here.
-                total_lot_qty = sum(entry['qty'] for entry in lot_quantities.values())
-                _logger.info(
-                    '[_split_lines_by_lot] Line %s | safety check: total_lot_qty=%.2f vs line.quantity=%.2f',
-                    line.id, total_lot_qty, line.quantity,
-                )
                 if abs(total_lot_qty - line.quantity) > 0.001:
                     _logger.warning(
                         '[_split_lines_by_lot] Invoice %s line %s: '
-                        'lot qty total %.2f ≠ line qty %.2f → SKIPPING split. '
+                        'lot qty total %.2f ≠ line qty %.2f after both passes → SKIPPING split. '
                         'Lots found: %s',
                         invoice.name, line.id, total_lot_qty, line.quantity,
                         {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
