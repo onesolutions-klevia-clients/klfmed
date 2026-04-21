@@ -32,3 +32,12 @@ class StockMove(models.Model):
                 if move.purchase_line_id and move.purchase_line_id.x_studio_delivery_date:
                     move.x_studio_delivery_date = move.purchase_line_id.x_studio_delivery_date
         return moves
+
+    def _action_assign(self):
+        res = super()._action_assign()
+        for move in self:
+            if (move.picking_id
+                    and move.picking_id.picking_type_code == 'dropship'
+                    and move.move_line_ids):
+                move.move_line_ids.write({'qty_done': 0.0})
+        return res
