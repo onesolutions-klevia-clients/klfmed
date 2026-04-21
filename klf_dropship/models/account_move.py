@@ -285,26 +285,91 @@ class AccountMove(models.Model):
                     _logger.info('[_split_lines_by_lot] Line %s | no sale_line_ids and no purchase_line_id', line.id)
                     continue
 
-                # Pass 1 — filtered by relevant pickings (invoice_number match)
-                lot_quantities = _collect_lots(relevant_picking_ids)
+                # Compute which pickings correspond to the uninvoiced portion of this line.
+                # Strategy: sum quantities already invoiced by OTHER invoices for the same
+                # order line, sort done moves chronologically, and include only the moves
+                # that fall in the [other_invoiced, other_invoiced + line.quantity] window.
+                def _find_new_picking_ids():
+                    new_ids = set()
+                    if line.sale_line_ids:
+                        order_lines = list(line.sale_line_ids)
+                    elif line.purchase_line_id:
+                        order_lines = [line.purchase_line_id]
+                    else:
+                        return new_ids
+
+                    other_invoiced = sum(
+                        il.quantity
+                        for ol in order_lines
+                        for il in ol.invoice_lines
+                        if il.move_id.id != invoice.id and il.move_id.state not in ('cancel',)
+                    )
+
+                    done_moves = sorted(
+                        (m for ol in order_lines for m in ol.move_ids if m.state == 'done'),
+                        key=lambda m: m.date,
+                    )
+
+                    target_start = other_invoiced
+                    target_end = other_invoiced + line.quantity
+                    cumulative = 0.0
+                    for move in done_moves:
+                        move_qty = (
+                            sum(ml.qty_done for ml in move.move_line_ids if ml.qty_done > 0)
+                            or (move.quantity or 0.0)
+                        )
+                        move_end = cumulative + move_qty
+                        if move_end > target_start + 0.001 and cumulative < target_end - 0.001:
+                            if move.picking_id:
+                                new_ids.add(move.picking_id.id)
+                        cumulative = move_end
+                        if cumulative >= target_end - 0.001:
+                            break
+
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | other_invoiced=%.2f target=[%.2f, %.2f] → %d new picking(s): %s',
+                        line.id, other_invoiced, target_start, target_end,
+                        len(new_ids), new_ids,
+                    )
+                    return new_ids
+
+                new_picking_ids = _find_new_picking_ids()
+
+                # Pass 1 — filtered by uninvoiced pickings (chronological approach)
+                pass1_filter = new_picking_ids if new_picking_ids else relevant_picking_ids
+                lot_quantities = _collect_lots(pass1_filter)
                 total_lot_qty = sum(e['qty'] for e in lot_quantities.values())
 
                 _logger.info(
-                    '[_split_lines_by_lot] Line %s | pass-1 (filtered): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
+                    '[_split_lines_by_lot] Line %s | pass-1 (new pickings): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
                     line.id, len(lot_quantities), total_lot_qty, line.quantity,
                     {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
                 )
 
                 if abs(total_lot_qty - line.quantity) > 0.001 and relevant_picking_ids:
-                    # Pass 2 — fall back to all done moves (line spans pickings with different invoice numbers)
+                    # Pass 2 — fallback to invoice_number filter
                     _logger.info(
-                        '[_split_lines_by_lot] Line %s | pass-1 mismatch → pass-2: removing picking filter',
+                        '[_split_lines_by_lot] Line %s | pass-1 mismatch → pass-2: invoice_number filter',
+                        line.id,
+                    )
+                    lot_quantities = _collect_lots(relevant_picking_ids)
+                    total_lot_qty = sum(e['qty'] for e in lot_quantities.values())
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | pass-2 (invoice_number): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
+                        line.id, len(lot_quantities), total_lot_qty, line.quantity,
+                        {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
+                    )
+
+                if abs(total_lot_qty - line.quantity) > 0.001:
+                    # Pass 3 — no filter (last resort)
+                    _logger.info(
+                        '[_split_lines_by_lot] Line %s | pass-2 mismatch → pass-3: no filter',
                         line.id,
                     )
                     lot_quantities = _collect_lots(set())
                     total_lot_qty = sum(e['qty'] for e in lot_quantities.values())
                     _logger.info(
-                        '[_split_lines_by_lot] Line %s | pass-2 (unfiltered): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
+                        '[_split_lines_by_lot] Line %s | pass-3 (unfiltered): %d lot(s) total_qty=%.2f vs line.quantity=%.2f | lots: %s',
                         line.id, len(lot_quantities), total_lot_qty, line.quantity,
                         {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
                     )
