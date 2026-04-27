@@ -59,6 +59,9 @@
                     font-size: 10pt;
                     color: #333;
                     padding: 10px 20px;
+                    display: flex;
+                    flex-direction: column;
+                    min-height: 265mm;
                 }
                 .klfmed-invoice .company-info {
                     font-size: 9pt;
@@ -191,6 +194,9 @@
                                     <br/>
                                 </t>
                                 <span t-field="o.partner_id.country_id.name"/>
+                                <t t-if="o.partner_id.vat">
+                                    <br/>VAT No. : <span t-field="o.partner_id.vat"/>
+                                </t>
                             </div>
                         </td>
                     </tr>
@@ -221,6 +227,9 @@
                                         <br/>
                                     </t>
                                     <span t-field="o.partner_shipping_id.country_id.name"/>
+                                    <t t-if="o.partner_shipping_id.vat">
+                                        <br/>VAT No. : <span t-field="o.partner_shipping_id.vat"/>
+                                    </t>
                                 </div>
                             </t>
                         </td>
@@ -326,6 +335,9 @@
                 <div t-if="related_so and related_so.x_studio_origin" style="margin-top: 15px; font-size: 9pt;">
                     <strong>Origin :</strong> <span t-esc="related_so.x_studio_origin"/>
                 </div>
+
+                <!-- Spacer to push payment section to bottom of last page -->
+                <div style="flex: 1;"></div>
 
                 <!-- Payment Terms & Banking Information -->
                 <table style="width: 100%; margin-top: 40px; font-size: 9pt; border-collapse: collapse;">
