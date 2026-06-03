@@ -37,6 +37,11 @@ Reports:
     'data': [
         'report/invoice_report.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'klf_dropship/static/src/js/dropship_form.js',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,
