@@ -3,6 +3,8 @@ import { patch } from '@web/core/utils/patch';
 import { FormController } from '@web/views/form/form_controller';
 import { onMounted, onPatched, onWillUnmount } from '@odoo/owl';
 
+const DETAILED_OPERATIONS_DATE_FIELDS = ['expiration_date', 'removal_date'];
+
 // Recursively finds an OWL component by constructor name in the component tree
 function findOWLComponent(node, name, depth = 0) {
 	if (depth > 20) return null;
@@ -80,7 +82,7 @@ patch(FormController.prototype, {
 						if (title?.textContent?.trim() !== 'Detailed Operations') continue;
 						setTimeout(() => {
 							reformatDialogDateFields(node, {
-								fields: ['expiration_date', 'removal_date'],
+								fields: DETAILED_OPERATIONS_DATE_FIELDS,
 							});
 						}, 0);
 					}
