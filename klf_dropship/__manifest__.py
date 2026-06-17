@@ -40,7 +40,6 @@ Reports:
     'assets': {
         'web.assets_backend': [
             'klf_dropship/static/src/js/dropship_form.js',
-            'klf_dropship/static/src/js/dropship_modal.js',
         ],
     },
     'installable': True,
