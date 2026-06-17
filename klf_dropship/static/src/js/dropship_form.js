@@ -28,6 +28,17 @@ function reformatDialogDateFields(dialog, { fields = [], listField = 'move_line_
 	const records = formCtrl?.model?.root?.data?.[listField]?.records;
 	if (!records?.length) return;
 
+	// Rewrites the text node of a DOM element to `after`, in place so OWL keeps its reference.
+	const rewriteTextNode = (el, after) => {
+		const textNode = [...el.childNodes].find(
+			(n) => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim(),
+		);
+		if (textNode && textNode.nodeValue !== after) {
+			console.log(`[klf] "${textNode.nodeValue}" → "${after}"`);
+			textNode.nodeValue = after;
+		}
+	};
+
 	const applyFormatting = () => {
 		const rows = [...dialog.querySelectorAll('tbody tr.o_data_row')];
 		records.forEach((record, i) => {
@@ -37,16 +48,13 @@ function reformatDialogDateFields(dialog, { fields = [], listField = 'move_line_
 				const cell = row.querySelector(`td[name="${field}"]`);
 				const value = record.data?.[field];
 				if (!cell || !value) return;
-				// Modify the existing text node in place so OWL keeps its reference to it.
-				const textNode = [...cell.childNodes].find(
-					(n) => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim(),
-				);
-				if (!textNode) return;
 				try {
 					const after = value.toISODate();
-					if (textNode.nodeValue === after) return;
-					console.log(`[klf] ${field}: "${textNode.nodeValue}" → "${after}"`);
-					textNode.nodeValue = after;
+					// Read mode: text node directly in the cell
+					rewriteTextNode(cell, after);
+					// Edit mode after Apply: Odoo renders a button.o_input with the locale date
+					const btn = cell.querySelector('button.o_input');
+					if (btn) rewriteTextNode(btn, after);
 				} catch (e) {
 					console.warn(`[klf] ${field}: failed to reformat`, e);
 				}
