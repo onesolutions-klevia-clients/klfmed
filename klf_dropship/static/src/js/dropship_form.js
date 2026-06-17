@@ -36,13 +36,18 @@ function reformatDialogDateFields(dialog, { fields = [], listField = 'move_line_
 			const cell = row.querySelector(`td[name="${field}"]`);
 			const value = record.data?.[field];
 			if (!cell || !value) return;
-			const before = cell.textContent;
+			// Find the text node OWL uses to render the date — modify in place so OWL keeps
+			// its reference to the node and can still patch the cell on click-to-edit.
+			const textNode = [...cell.childNodes].find(
+				(n) => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim(),
+			);
+			if (!textNode) return;
 			try {
 				const after = value.toISODate();
-				console.log(`[klf] ${field}: "${before}" → "${after}"`);
-				cell.textContent = after;
+				console.log(`[klf] ${field}: "${textNode.nodeValue}" → "${after}"`);
+				textNode.nodeValue = after;
 			} catch (e) {
-				console.warn(`[klf] ${field}: failed to reformat "${before}"`, e);
+				console.warn(`[klf] ${field}: failed to reformat "${textNode.nodeValue}"`, e);
 			}
 		});
 	});
