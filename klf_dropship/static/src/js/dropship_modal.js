@@ -1,7 +1,8 @@
 /** @odoo-module **/
 
 function isOnDropshipPicking() {
-    return !!document.querySelector('.klf-reset-qty-btn');
+    const pickingTypeWidget = document.querySelector('.o_form_view .o_field_widget[name="picking_type_id"]');
+    return pickingTypeWidget?.textContent?.trim().toLowerCase().includes('dropship') ?? false;
 }
 
 const observer = new MutationObserver((mutations) => {
