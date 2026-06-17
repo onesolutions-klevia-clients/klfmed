@@ -34,7 +34,14 @@ function reformatDialogDateFields(dialog, { fields = [], listField = 'move_line_
 			const cell = row.querySelector(`td[name="${field}"]`);
 			const value = record.data?.[field];
 			if (!cell || !value) return;
-			cell.textContent = value.toISODate();
+			const before = cell.textContent;
+			try {
+				const after = value.toISODate();
+				console.log(`[klf] ${field}: "${before}" → "${after}"`);
+				cell.textContent = after;
+			} catch (e) {
+				console.warn(`[klf] ${field}: failed to reformat "${before}"`, e);
+			}
 		});
 	});
 }
