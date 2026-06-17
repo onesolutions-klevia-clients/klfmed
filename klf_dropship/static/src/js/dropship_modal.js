@@ -1,0 +1,23 @@
+/** @odoo-module **/
+
+function isOnDropshipPicking() {
+    return !!document.querySelector('.klf-reset-qty-btn');
+}
+
+const observer = new MutationObserver((mutations) => {
+    if (!isOnDropshipPicking()) return;
+
+    for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            const dialog = node.classList?.contains('o_dialog') ? node : node.querySelector?.('.o_dialog');
+            if (!dialog) continue;
+            const title = dialog.querySelector('.modal-title');
+            if (title?.textContent?.trim() === 'Detailed Operations') {
+                console.log('[klf] Detailed Operations modal opened');
+            }
+        }
+    }
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
