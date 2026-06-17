@@ -33,10 +33,8 @@ patch(FormController.prototype, {
             const observer = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
                     for (const node of mutation.addedNodes) {
-                        if (node.nodeType !== 1) continue;
-                        const dialog = node.classList?.contains('o_dialog') ? node : node.querySelector?.('.o_dialog');
-                        if (!dialog) continue;
-                        const title = dialog.querySelector('.modal-title');
+                        if (node.nodeType !== 1 || !node.classList?.contains('o_dialog')) continue;
+                        const title = node.querySelector('.modal-title');
                         if (title?.textContent?.trim() === 'Detailed Operations') {
                             console.log('[klf] Detailed Operations modal opened');
                         }
