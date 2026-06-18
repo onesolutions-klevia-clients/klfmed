@@ -274,7 +274,7 @@
                                 <span t-else="">Draft</span>
                                 <br/>
                                 <span class="label">Date : </span>
-                                <span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
+                                <span t-field="o.invoice_date" t-options='{"format": "yyyy-MM-dd"}'/>
                                 <br/>
                                 <span class="label">Yr/order no. : </span><span t-esc="po_numbers_map.get(o.id, '')"/><br/>
                             </td>
