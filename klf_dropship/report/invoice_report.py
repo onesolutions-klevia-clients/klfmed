@@ -36,9 +36,37 @@ class KlfmedInvoiceReport(models.AbstractModel):
             ))
             po_numbers_map[move.id] = ', '.join(po_numbers)
 
+        # Pre-compute carrier tracking reference(s) from the related dropship picking(s)
+        tracking_refs_map = {}
+        for move in docs:
+            tracking_refs_map[move.id] = ', '.join(self._get_tracking_refs(move))
+
         return {
             'doc_ids': docids,
             'doc_model': 'account.move',
             'docs': docs,
             'po_numbers_map': po_numbers_map,
+            'tracking_refs_map': tracking_refs_map,
         }
+
+    @api.model
+    def _get_tracking_refs(self, move):
+        """
+        Collect unique carrier tracking references from the dropship picking(s)
+        linked to an invoice.
+
+        Pickings are traced the same way as in AccountMove._populate_from_picking:
+        invoice line → sale/purchase line → stock.move → picking.
+        """
+        pickings = self.env['stock.picking']
+        for line in move.invoice_line_ids:
+            for sale_line in line.sale_line_ids:
+                pickings |= sale_line.move_ids.mapped('picking_id')
+            if line.purchase_line_id:
+                pickings |= line.purchase_line_id.move_ids.mapped('picking_id')
+
+        return list(dict.fromkeys(
+            picking.carrier_tracking_ref
+            for picking in pickings
+            if picking.carrier_tracking_ref
+        ))
