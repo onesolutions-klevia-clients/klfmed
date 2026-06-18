@@ -61,7 +61,17 @@
                     padding: 10px 20px;
                     display: flex;
                     flex-direction: column;
-                    min-height: 265mm;
+                    box-sizing: border-box;
+                    /* Approx. usable height of one A4 page (96 DPI CSS, 10mm
+                       top/bottom margins ≈ 1047px). Kept slightly under to avoid
+                       spilling onto a blank second page. */
+                    min-height: 1020px;
+                }
+                /* Flexible gap that grows to push the footer toward the bottom
+                   of the page when there are only a few invoice lines. */
+                .klfmed-invoice .footer-spacer {
+                    flex: 1 1 auto;
+                    min-height: 40px;
                 }
                 .klfmed-invoice .company-info {
                     font-size: 9pt;
@@ -126,6 +136,10 @@
                     padding: 8px 6px;
                     vertical-align: top;
                     border-bottom: 1px solid #ccc !important;
+                }
+                .klfmed-invoice .lines-table th.product-code,
+                .klfmed-invoice .lines-table td.product-code {
+                    white-space: nowrap;
                 }
                 .klfmed-invoice .text-right {
                     text-align: right;
@@ -243,16 +257,19 @@
                             <!-- Shipment Info (Left) -->
                             <td style="width: 55%; vertical-align: top;">
                                 <t t-if="o.x_studio_port_of_loading">
-                                    <span class="label">Loading : </span><span t-field="o.x_studio_port_of_loading"/><br/>
+                                    <span class="label">Port of Loading : </span><span t-field="o.x_studio_port_of_loading"/><br/>
                                 </t>
                                 <t t-if="o.x_studio_port_of_destination">
-                                    <span class="label">Destination : </span><span t-field="o.x_studio_port_of_destination"/><br/>
+                                    <span class="label">Port of Destination : </span><span t-field="o.x_studio_port_of_destination"/><br/>
                                 </t>
                                 <t t-if="o.invoice_incoterm_id">
-                                    <span class="label">Incoterms : </span><span t-field="o.invoice_incoterm_id.code"/> <span t-field="o.invoice_incoterm_id.name"/><br/>
+                                    <span class="label">Incoterms : </span><span t-field="o.invoice_incoterm_id.name"/><br/>
                                 </t>
                                 <t t-if="o.x_studio_bl_no">
                                     <span class="label">BL No. : </span><span t-field="o.x_studio_bl_no"/><br/>
+                                </t>
+                                <t t-if="tracking_refs_map.get(o.id)">
+                                    <span class="label">Tracking Ref. : </span><span t-esc="tracking_refs_map.get(o.id, '')"/><br/>
                                 </t>
                             </td>
                             <!-- Invoice Info (Right) -->
@@ -263,7 +280,7 @@
                                 <span t-else="">Draft</span>
                                 <br/>
                                 <span class="label">Date : </span>
-                                <span t-field="o.invoice_date" t-options='{"format": "MMMM dd, yyyy"}'/>
+                                <span t-field="o.invoice_date" t-options='{"format": "yyyy-MM-dd"}'/>
                                 <br/>
                                 <span class="label">Yr/order no. : </span><span t-esc="po_numbers_map.get(o.id, '')"/><br/>
                             </td>
@@ -275,12 +292,12 @@
                 <table class="lines-table">
                     <thead>
                         <tr>
-                            <th style="width: 8%;">Product<br/>Code</th>
-                            <th style="width: 32%;">Description</th>
+                            <th style="width: 12%;" class="product-code">Product<br/>Code</th>
+                            <th style="width: 30%;">Description</th>
                             <th style="width: 8%;">Lot No.</th>
                             <th style="width: 10%;">Expiration<br/>Date</th>
                             <th style="width: 7%;" class="text-right">Quantity<br/>(Units)</th>
-                            <th style="width: 13%;">PO no.</th>
+                            <th style="width: 7%;">PO no.</th>
                             <th style="width: 11%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
                             <th style="width: 11%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
                         </tr>
@@ -288,7 +305,7 @@
                     <tbody>
                         <t t-foreach="o.invoice_line_ids" t-as="line">
                             <tr>
-                                <td><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
+                                <td class="product-code"><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
                                 <td>
                                     <t t-if="line.product_id and line.product_id.description_sale">
                                         <t t-esc="line.product_id.description_sale"/>
@@ -317,8 +334,8 @@
                 <!-- Total -->
                 <table style="width: 100%; margin-top: 40px; border-collapse: collapse;">
                     <tr class="total-line">
-                        <td style="width: 8%;"></td>
-                        <td style="width: 34%;"></td>
+                        <td style="width: 12%;"></td>
+                        <td style="width: 30%;"></td>
                         <td colspan="2" style="width: 16%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL QTY</td>
                         <td style="width: 7%; text-align: right;">
                             <span t-esc="'{:,.0f}'.format(sum(line.quantity for line in o.invoice_line_ids))"/>
@@ -336,8 +353,9 @@
                     <strong>Origin :</strong> <span t-esc="related_so.x_studio_origin"/>
                 </div>
 
-                <!-- Spacer to push payment section to bottom of last page -->
-                <div style="flex: 1;"></div>
+                <!-- Flexible spacer: pushes the payment/banking footer toward the
+                     bottom of the page and adds breathing room above it. -->
+                <div class="footer-spacer"></div>
 
                 <!-- Payment Terms & Banking Information -->
                 <table style="width: 100%; margin-top: 40px; font-size: 9pt; border-collapse: collapse;">
