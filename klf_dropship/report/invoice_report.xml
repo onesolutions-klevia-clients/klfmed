@@ -138,7 +138,9 @@
                     border-bottom: 1px solid #ccc !important;
                 }
                 .klfmed-invoice .lines-table th.product-code,
-                .klfmed-invoice .lines-table td.product-code {
+                .klfmed-invoice .lines-table td.product-code,
+                .klfmed-invoice .lines-table th.po-number,
+                .klfmed-invoice .lines-table td.po-number {
                     white-space: nowrap;
                 }
                 .klfmed-invoice .text-right {
@@ -293,11 +295,11 @@
                     <thead>
                         <tr>
                             <th style="width: 12%;" class="product-code">Product<br/>Code</th>
-                            <th style="width: 30%;">Description</th>
+                            <th style="width: 25%;">Description</th>
                             <th style="width: 8%;">Lot No.</th>
                             <th style="width: 10%;">Expiration<br/>Date</th>
                             <th style="width: 7%;" class="text-right">Quantity<br/>(Units)</th>
-                            <th style="width: 7%;">PO no.</th>
+                            <th style="width: 12%;" class="po-number">PO no.</th>
                             <th style="width: 11%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
                             <th style="width: 11%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
                         </tr>
@@ -319,7 +321,7 @@
                                 <td class="text-right">
                                     <span t-esc="'{:,.0f}'.format(line.quantity)"/>
                                 </td>
-                                <td><span t-if="line.x_studio_po_no_ref" t-field="line.x_studio_po_no_ref"/></td>
+                                <td class="po-number"><span t-if="line.x_studio_po_no_ref" t-field="line.x_studio_po_no_ref"/></td>
                                 <td class="text-right">
                                     <span t-esc="'{:,.4f}'.format(line.price_unit)"/>
                                 </td>
@@ -335,7 +337,7 @@
                 <table style="width: 100%; margin-top: 40px; border-collapse: collapse;">
                     <tr class="total-line">
                         <td style="width: 12%;"></td>
-                        <td style="width: 30%;"></td>
+                        <td style="width: 25%;"></td>
                         <td colspan="2" style="width: 16%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL QTY</td>
                         <td style="width: 7%; text-align: right;">
                             <span t-esc="'{:,.0f}'.format(sum(line.quantity for line in o.invoice_line_ids))"/>
