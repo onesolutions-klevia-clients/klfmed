@@ -60,7 +60,7 @@ class AccountMove(models.Model):
 
         Fields populated:
         - x_studio_port_of_destination (from customer default or picking)
-        - x_studio_port_of_loading (from picking)
+        - x_studio_port_of_loading (from customer default or picking)
         - x_studio_invoice_number (from picking)
         - x_studio_destination_country (from partner country)
         """
@@ -100,6 +100,9 @@ class AccountMove(models.Model):
                 # Port of destination from customer default
                 if not move.x_studio_port_of_destination and partner.x_studio_default_destination_port:
                     move.x_studio_port_of_destination = partner.x_studio_default_destination_port
+                # Port of loading from customer default
+                if not move.x_studio_port_of_loading and partner.x_studio_default_port_of_loading:
+                    move.x_studio_port_of_loading = partner.x_studio_default_port_of_loading
                 # Destination country from customer country
                 if not move.x_studio_destination_country and partner.country_id:
                     move.x_studio_destination_country = partner.country_id.id
