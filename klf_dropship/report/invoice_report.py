@@ -65,8 +65,12 @@ class KlfmedInvoiceReport(models.AbstractModel):
             if line.purchase_line_id:
                 pickings |= line.purchase_line_id.move_ids.mapped('picking_id')
 
+        # Strip and skip blank/whitespace-only references so the resulting map
+        # value is truly empty when there is nothing real to show. Otherwise a
+        # whitespace-only carrier_tracking_ref would pass the template's t-if
+        # guard and render an empty "Tracking Ref. :" label.
         return list(dict.fromkeys(
-            picking.carrier_tracking_ref
+            picking.carrier_tracking_ref.strip()
             for picking in pickings
-            if picking.carrier_tracking_ref
+            if picking.carrier_tracking_ref and picking.carrier_tracking_ref.strip()
         ))
