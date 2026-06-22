@@ -252,6 +252,9 @@
                         <tr>
                             <!-- Shipment Info (Left) -->
                             <td style="width: 55%; vertical-align: top;">
+                                <t t-if="o.x_studio_port_of_loading">
+                                    <span class="label">Port of Loading : </span><span t-field="o.x_studio_port_of_loading"/><br/>
+                                </t>
                                 <t t-if="o.invoice_incoterm_id or o.x_studio_port_of_loading">
                                     <span class="label">Incoterms : </span><span t-esc="' '.join(filter(None, [o.invoice_incoterm_id.code if o.invoice_incoterm_id else '', (o.x_studio_port_of_loading or '').upper()]))"/><br/>
                                 </t>
