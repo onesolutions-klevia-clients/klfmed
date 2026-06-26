@@ -61,6 +61,7 @@ class AccountMove(models.Model):
         Fields populated:
         - x_studio_port_of_destination (from customer default or picking)
         - x_studio_port_of_loading (from customer default or picking)
+        - invoice_incoterm_id (from SO, fallback to customer default)
         - x_studio_invoice_number (from picking)
         - x_studio_destination_country (from partner country)
         """
@@ -106,10 +107,12 @@ class AccountMove(models.Model):
                 # Destination country from customer country
                 if not move.x_studio_destination_country and partner.country_id:
                     move.x_studio_destination_country = partner.country_id.id
-            # Incoterm from SO
-            if sale_orders:
-                if not move.invoice_incoterm_id and sale_orders[0].incoterm:
+            # Incoterm from SO, fallback to customer default
+            if not move.invoice_incoterm_id:
+                if sale_orders and sale_orders[0].incoterm:
                     move.invoice_incoterm_id = sale_orders[0].incoterm
+                elif partner and partner.x_studio_default_incoterm:
+                    move.invoice_incoterm_id = partner.x_studio_default_incoterm
 
             # Get data from pickings
             for picking in pickings:
