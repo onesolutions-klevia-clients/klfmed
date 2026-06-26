@@ -4,6 +4,20 @@ from odoo import api, models
 
 _logger = logging.getLogger(__name__)
 
+# Constant factory location used for EXW/FCA incoterms (goods handed over at the
+# factory, not at a port). Customer-confirmed: always WENZHOU (CHINA).
+INCOTERM_FACTORY_LOCATION = 'WENZHOU (CHINA)'
+
+# Incoterm code → which location qualifies the term on the commercial invoice.
+# Customer-confirmed Incoterms 2020 mapping:
+#   EXW / FCA                          → factory location (constant above)
+#   FOB / FAS                          → port of loading
+#   CFR / CIF / CPT / CIP / DAP / DPU / DDP → port of destination
+#   any other code                     → port of loading (fallback, prior behavior)
+INCOTERM_FACTORY_CODES = {'EXW', 'FCA'}
+INCOTERM_LOADING_CODES = {'FOB', 'FAS'}
+INCOTERM_DESTINATION_CODES = {'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'}
+
 
 class KlfmedInvoiceReport(models.AbstractModel):
     _name = 'report.klf_dropship.report_invoice_klfmed'
@@ -41,13 +55,45 @@ class KlfmedInvoiceReport(models.AbstractModel):
         for move in docs:
             tracking_refs_map[move.id] = ', '.join(self._get_tracking_refs(move))
 
+        # Pre-compute the Incoterms line ("<CODE> <LOCATION>") per invoice
+        incoterms_map = {}
+        for move in docs:
+            incoterms_map[move.id] = self._get_incoterm_display(move)
+
         return {
             'doc_ids': docids,
             'doc_model': 'account.move',
             'docs': docs,
             'po_numbers_map': po_numbers_map,
             'tracking_refs_map': tracking_refs_map,
+            'incoterms_map': incoterms_map,
         }
+
+    @api.model
+    def _get_incoterm_display(self, move):
+        """
+        Build the Incoterms line for the commercial invoice as "<CODE> <LOCATION>".
+
+        The qualifying location depends on the incoterm code (see mapping
+        constants): factory location for EXW/FCA, port of loading for FOB/FAS,
+        port of destination for CFR/CIF/CPT/CIP/DAP/DPU/DDP, and port of loading
+        as the fallback for any other code.
+
+        Only the incoterm *code* is shown, never its name. Returns an empty
+        string when no incoterm is set so the template hides the line entirely.
+        """
+        incoterm = move.invoice_incoterm_id
+        if not incoterm:
+            return ''
+        code = (incoterm.code or '').upper()
+        if code in INCOTERM_FACTORY_CODES:
+            location = INCOTERM_FACTORY_LOCATION
+        elif code in INCOTERM_DESTINATION_CODES:
+            location = move.x_studio_port_of_destination or ''
+        else:
+            # FOB/FAS and any other (fallback) incoterm → port of loading
+            location = move.x_studio_port_of_loading or ''
+        return ' '.join(filter(None, [code, location.strip().upper()]))
 
     @api.model
     def _get_tracking_refs(self, move):
