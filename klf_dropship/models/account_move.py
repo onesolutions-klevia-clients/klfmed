@@ -380,9 +380,32 @@ class AccountMove(models.Model):
                         {v['lot'].name: v['qty'] for v in lot_quantities.values() if v.get('lot')},
                     )
 
-                # Only split if there are multiple distinct lots
-                if len(lot_quantities) <= 1:
-                    _logger.info('[_split_lines_by_lot] Line %s | skipped (≤1 lot found)', line.id)
+                # Single lot resolved: the concatenated label from _populate_lot_number
+                # includes lots from other shipments of the same order line — relabel
+                # the line in place with the lot that actually belongs to this invoice.
+                if len(lot_quantities) == 1:
+                    entry = next(iter(lot_quantities.values()))
+                    lot = entry.get('lot')
+                    if lot and abs(entry['qty'] - line.quantity) <= 0.001:
+                        relabel_vals = {'x_studio_lot_number': lot.name}
+                        if lot.expiration_date:
+                            exp = lot.expiration_date.date() if hasattr(lot.expiration_date, 'date') else lot.expiration_date
+                            relabel_vals['x_studio_expiration_date'] = exp
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | relabeled to single lot "%s" (qty=%.2f)',
+                            line.id, lot.name, entry['qty'],
+                        )
+                        line.write(relabel_vals)
+                    else:
+                        _logger.info(
+                            '[_split_lines_by_lot] Line %s | skipped (single lot "%s" qty=%.2f ≠ line qty=%.2f)',
+                            line.id, lot.name if lot else 'no-lot',
+                            entry['qty'], line.quantity,
+                        )
+                    continue
+
+                if not lot_quantities:
+                    _logger.info('[_split_lines_by_lot] Line %s | skipped (no lots found)', line.id)
                     continue
 
                 # Safety: total lot qty must match invoice line qty.
