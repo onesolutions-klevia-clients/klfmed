@@ -9,7 +9,7 @@
         <field name="orientation">Portrait</field>
         <field name="margin_top">10</field>
         <field name="margin_bottom">10</field>
-        <field name="margin_left">12</field>
+        <field name="margin_left">6</field>
         <field name="margin_right">6</field>
         <field name="header_line" eval="False"/>
         <field name="header_spacing">0</field>
@@ -58,7 +58,7 @@
                     font-family: Arial, Helvetica, sans-serif;
                     font-size: 10pt;
                     color: #333;
-                    padding: 10px 20px;
+                    padding: 10px 5px;
                     display: flex;
                     flex-direction: column;
                     box-sizing: border-box;
@@ -141,6 +141,13 @@
                 .klfmed-invoice .lines-table td.product-code,
                 .klfmed-invoice .lines-table th.po-number,
                 .klfmed-invoice .lines-table td.po-number {
+                    white-space: nowrap;
+                }
+                .klfmed-invoice .lines-table td.description {
+                    font-size: 7.5pt;
+                    line-height: 1.35;
+                }
+                .klfmed-invoice .lines-table td.expiration-date {
                     white-space: nowrap;
                 }
                 .klfmed-invoice .text-right {
@@ -294,21 +301,21 @@
                 <table class="lines-table">
                     <thead>
                         <tr>
-                            <th style="width: 12%;" class="product-code">Product<br/>Code</th>
-                            <th style="width: 25%;">Description</th>
+                            <th style="width: 11%;" class="product-code">Product<br/>Code</th>
+                            <th style="width: 38%;">Description</th>
                             <th style="width: 8%;">Lot No.</th>
-                            <th style="width: 10%;">Expiration<br/>Date</th>
+                            <th style="width: 9%;" class="expiration-date">Expiration<br/>Date</th>
                             <th style="width: 7%;" class="text-right">Quantity<br/>(Units)</th>
-                            <th style="width: 12%;" class="po-number">PO no.</th>
-                            <th style="width: 11%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
-                            <th style="width: 11%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
+                            <th style="width: 10%;" class="po-number">PO no.</th>
+                            <th style="width: 9%;" class="text-right">Unit Price<br/><span t-esc="o.currency_id.name"/></th>
+                            <th style="width: 8%;" class="text-right">Amount<br/><span t-esc="o.currency_id.name"/></th>
                         </tr>
                     </thead>
                     <tbody>
                         <t t-foreach="o.invoice_line_ids" t-as="line">
                             <tr>
                                 <td class="product-code"><span t-if="line.product_id" t-field="line.product_id.default_code"/></td>
-                                <td>
+                                <td class="description">
                                     <t t-if="line.product_id and line.product_id.description_sale">
                                         <t t-esc="line.product_id.description_sale"/>
                                     </t>
@@ -317,7 +324,7 @@
                                     </t>
                                 </td>
                                 <td><span t-if="line.x_studio_lot_number" t-field="line.x_studio_lot_number"/></td>
-                                <td><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
+                                <td class="expiration-date"><span t-if="line.x_studio_expiration_date" t-field="line.x_studio_expiration_date"/></td>
                                 <td class="text-right">
                                     <span t-esc="'{:,.0f}'.format(line.quantity)"/>
                                 </td>
@@ -336,14 +343,14 @@
                 <!-- Total -->
                 <table style="width: 100%; margin-top: 40px; border-collapse: collapse;">
                     <tr class="total-line">
-                        <td style="width: 12%;"></td>
-                        <td style="width: 25%;"></td>
-                        <td colspan="2" style="width: 16%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL QTY</td>
+                        <td style="width: 11%;"></td>
+                        <td style="width: 38%;"></td>
+                        <td colspan="2" style="width: 17%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL QTY</td>
                         <td style="width: 7%; text-align: right;">
                             <span t-esc="'{:,.0f}'.format(sum(line.quantity for line in o.invoice_line_ids))"/>
                         </td>
-                        <td colspan="2" style="width: 24%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL</td>
-                        <td style="width: 11%;" class="text-right">
+                        <td colspan="2" style="width: 19%; font-weight: bold; text-align: right; padding-right: 4px;">TOTAL</td>
+                        <td style="width: 8%;" class="text-right">
                             <span t-esc="'{:,.2f}'.format(o.amount_total)"/>
                         </td>
                     </tr>
